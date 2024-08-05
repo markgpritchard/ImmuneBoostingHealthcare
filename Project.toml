@@ -1,7 +1,23 @@
 name = "ImmuneBoostingHealthcare"
 authors = ["Mark Pritchard"]
-[compat]
-julia = "1.8.5"
-DrWatson = "2.14.1"
+
 [deps]
+Bootstrap = "e28b5b4c-05e8-5b66-bc03-6f0c0a0a06e0"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
+Pigeons = "0eb8d820-af6a-4919-95ae-11206f830c31"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
+
+[compat]
+DrWatson = "2.14.1"
+julia = "1.8.5"
