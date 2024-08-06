@@ -2,7 +2,7 @@
 using DrWatson
 @quickactivate "ImmuneBoostingHealthcare"
 
-using Bootstrap, CairoMakie, CSV, DataFrames, Random
+using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
 
 ###########################################################################################
 # Functions 
@@ -119,7 +119,7 @@ _modifyp(::AbstractParameters{T}, v::AbstractVector{T}, ::Symbol) where T = v
 
 function seiirrrs!(du, u, p, t)
     # Proportion infectious
-    p_i = sum(u[3:4]) / sum(u[1:8])  
+    p_i = sum(@view u[3:4]) / sum(@view u[1:8])  
     
     # Force of infection 
     λ = p.β[1] * p_i
@@ -141,10 +141,10 @@ function seiirrrs!(du, u, p, t)
 end
 
 function wxyyzseiirrrs!(du, u, p, t)
-    np = sum(u[1:6])
+    np = sum(@view u[1:6])
     # Proportions infectious
-    pp = sum(u[3:4]) / np  # proportion of patients infectious
-    ph = sum(u[9:10]) / sum(u[7:14])  # proportion healthcare workers infectious
+    pp = sum(@view u[3:4]) / np  # proportion of patients infectious
+    ph = sum(@view u[9:10]) / sum(@view u[7:14])  # proportion healthcare workers infectious
     
     # Force of infection 
     λh = p.β[1] * ph + p.β[2] * pp + p.λc
@@ -556,6 +556,9 @@ function calculatedirecteffect(data)
     
     wn = @. exp(-(data.Y_t11 - Ey2n)^2 / (2π * sigman2)) / (2π * sigman2)
     wd = @. exp(-(data.Y_t11 - Ey2d)^2 / (2π * sigmad2)) / (2π * sigmad2)
+    println("wn=$wn")
+
+    println("wd=$wd")
     w_unlimited = wn ./ wd
     w98 = quantile(w_unlimited, 0.98)
     w = [ x > w98 ? w98 : x for x ∈ w_unlimited ]
@@ -569,7 +572,7 @@ function calculatetotaleffect(data)
     Ey2nformula = @formula(Y_t11 ~ t^0.5 + log(t) + Code)
     Ey2nregr = fit(LinearModel, Ey2nformula, data)
     Ey2n = predict(Ey2nregr)
-    dy2n = Ey2n .- data.y2
+    dy2n = Ey2n .- data.Y_t11
     sigman2 = var(dy2n)
     
     Ey2dformula = @formula(
@@ -715,16 +718,264 @@ insertcols!(
     :Rproportion => unboostedsimulation.R ./ unboostedsimulation.N
 )
 insertpreviousvalues!(
-    unboostedsimulation, [ :λh, :PatientsProportion, :StaffProportion, :Rproportion ], 43; 
-    label=[ :λh, :Y, :I, :R ]
+    unboostedsimulation, [ :PatientsProportion, :StaffProportion ], 43; 
+    label=[ :Y, :I ]
 )
 
+function immunewaningvector(
+    t::AbstractVector, locationcodes::AbstractVector, 
+    beta2, beta1, betahalf, betazero, betaminus1
+)
+    singlesitet = t[findall(x -> x == locationcodes[1], locationcodes)]
+    logchanges = [ 
+        x == 0 ? 
+            zero(beta2) : 
+            beta2 * x^2 + beta1 * x + betahalf * sqrt(x) + betazero * log(x) + betaminus1 / x  
+        for x ∈ singlesitet 
+    ]
+    f = ones(length(logchanges))
+    for i ∈ eachindex(f)
+        i == 1 && continue 
+        if exp(logchanges[i]) == Inf
+            f[i] = 0.0 
+        else
+            f[i] = f[(i - 1)] * (1 - exp(logchanges[i]) / (1 + exp(logchanges[i])))
+        end
+    end
+    return f
+end
+
+function immunewaningvector(
+    data::DataFrame, t, locationcodes, beta2, beta1, betahalf, betazero, betaminus1
+)
+    return immunewaningvector(
+        getproperty(data, t), getproperty(data,locationcodes), 
+        beta2, beta1, betahalf, betazero, betaminus1
+    )
+end
+
+#
+#
+#
+#
+#
+#
+#
+#beta2 = 0.02; beta1 = 0.3; betahalf =-0.2; betazero = 0.2; betaminus1 = -1.2
+
+function immunewaning(t::AbstractVector, locationcodes::AbstractVector, infections::AbstractVector, beta2, beta1, betahalf, betazero, betaminus1)
+    f = immunewaningvector(t, locationcodes, beta2, beta1, betahalf, betazero, betaminus1)
+    immune = zeros(length(infections))
+    for code ∈ unique(locationcodes)
+        inds = findall(x -> x == code, locationcodes)
+        inds0 = inds[1] - 1
+        t_loc = t[inds]
+        infect_loc = infections[inds]
+        @assert length(t_loc) == length(infect_loc)
+        for i ∈ eachindex(infect_loc)
+            for j ∈ i+1:length(infect_loc)
+                immune[(j + inds0)] += infect_loc[i] * f[(j - i)]
+            end
+        end
+    end
+    return immune
+end
+
+function immunewaning(data::DataFrame, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
+    return immunewaning(getproperty(data, t), getproperty(data, locationcodes), getproperty(data, infections), beta2, beta1, betahalf, betazero, betaminus1)
+end
+
+function addimmunewaning!(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
+    insertcols!(data, :immune => immunewaning(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1))
+end
+
+function replaceimmunewaning!(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
+    data.immune = immunewaning(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
+end
+
+@model bcodevalue(prior) = b ~ prior
+
+@model function q3fitmodel(data)
+    # function for immune waning 
+    ℓ_codes = length(unique(data.Code))
+    beta2  ~ Normal(0, 1)
+    beta1  ~ Normal(0, 1)
+    betahalf ~ Normal(0, 1)
+    betazero ~ Normal(0, 1) 
+    betaminus1 ~ Normal(0, 1)
+
+    b1 ~ Normal(0, 1)
+    b2 ~ Normal(0, 1)
+    b3 ~ Normal(0, 1)
+    b4 ~ Normal(0, 1)
+    b5 ~ Normal(0, 1)
+    b6 ~ Normal(0, 1)
+    b_code = Vector{typeof(b1)}(undef, ℓ_codes)
+    for i ∈ eachindex(b_code)
+        b_code[i] = @submodel prefix="b_code$i" b = bcodevalue(Normal(0, 1))
+    end
+
+    sigma2 ~ Exponential(1)
+
+    replaceimmunewaning!(data, :t, :Code, :i4, beta2, beta1, betahalf, betazero, betaminus1)
+
+    q3regr = (
+        b1 .* data.dichy2int .+ 
+        b2 .* data.y3 .+ 
+        b3 .* data.i3 .+ 
+        b4 .* data.i1 .+ 
+        b5 .* data.y1 .+ 
+        b6 .* data.immune .+ 
+        sum([
+            b_code[i] .* (data.Code .== code) for (i, code) ∈ enumerate(unique(data.Code))
+        ])
+    )
+
+    data.i4 ~ MvNormal(q3regr, sigma2)
+end
+
+function pol_q3fitmodel(config)
+    @unpack model, modelname, n_rounds, n_chains, seed = config
+    roundconfig = @ntuple modelname model n_rounds=1 n_chains seed
+    round1 = produce_or_load(pol_q3fitmodel1, roundconfig, datadir("sims"))
+    for n ∈ 2:(n_rounds-1)
+        roundconfig = @ntuple modelname model n_rounds=n n_chains seed
+        roundn = produce_or_load(pol_q3fitmodelelement, roundconfig, datadir("sims"))
+    end
+    oldfilename = "modelname=$(modelname)_n_chains=$(n_chains)_n_rounds=$(n_rounds - 1)_seed=$(seed).jld2"
+    pt = load(datadir("sims", oldfilename))["pt"]
+    pt = increment_n_rounds!(pt, 1)
+    new_pt = pigeons(pt)
+    new_chains = Chains(new_pt)
+
+    return Dict(
+        "chain" => new_chains, 
+        "pt" => new_pt, 
+        "modelname" => modelname, 
+        "n_rounds" => n_rounds, 
+        "n_chains" => n_chains,
+    )
+end
+
+function pol_q3fitmodel1(config)
+    @unpack model, modelname, n_chains, seed = config
+    fitted_pt = pigeons( ;
+        target=TuringLogPotential(model),
+        n_rounds=1,
+        n_chains,
+        multithreaded=true,
+        record=[ traces; record_default() ],
+        seed,
+        variational=GaussianReference(),
+    )
+    fitted_chains = Chains(fitted_pt)
+    return Dict(
+        "chain" => fitted_chains, 
+        "pt" => fitted_pt, 
+        "modelname" => modelname, 
+        "n_rounds" => n_rounds, 
+        "n_chains" => n_chains,
+    )
+end
+
+function pol_q3fitmodelelement()
+    @unpack model, modelname, n_rounds, n_chains, seed = config
+    oldfilename = "modelname=$(modelname)_n_chains=$(n_chains)_n_rounds=$(n_rounds - 1)_seed=$(seed).jld2"
+    pt = load(datadir("sims", oldfilename))["pt"]
+    pt = increment_n_rounds!(pt, 1)
+    new_pt = pigeons(pt)
+    new_chains = Chains(new_pt)
+
+    return Dict(
+        "chain" => new_chains, 
+        "pt" => new_pt, 
+        "modelname" => modelname, 
+        "n_rounds" => n_rounds, 
+        "n_chains" => n_chains,
+    )
+
+end
+
+
+#=
+fitted_pt = pigeons( ;
+    target=TuringLogPotential(model),
+    n_rounds=1,
+    n_chains=4,
+    multithreaded=true,
+    record=[ traces; record_default() ],
+    seed=1,
+    variational=GaussianReference(),
+)
+
+fitted_chains = Chains(fitted_pt)
+
+
+insertcols!(unboostedsimulation, :immune => immune)
+=#
+
 dc = filter(:t => x -> x > 40, unboostedsimulation)
-
-insertgroupedvalues!(dc, 1:14, 15:28, 29:42, 23)
+insertgroupedvalues!(dc, 1:7, 8:14, 15:21, 22)
 select!(dc, :Code, :t, :i4, :i3, :i2, :i1, :y4, :y3, :y2, :y1, :S, :E, :I, :R)
-filter!(:t => x -> x > 340, dc)
+#filter!(:t => x -> x > 340, dc)
 
+# dichotomize exposure `y2` 
+insertcols!(
+    dc, 
+    :dichy2 => cut(dc.y2, quantile(dc.y2, [ 0, 0.5, 1 ]); extend=true, labels=[ 0, 1 ])
+)
+# make an integer version that will be accepted by `glm`
+insertcols!(dc, :dichy2int => levelcode.(dc.dichy2) .- 1)
+
+# create column `immune` which is used in fitting values 
+addimmunewaning!(dc, :t, :Code, :i4, 0, 0, 0, 0, 0)
+
+unboostedq3model = q3fitmodel(dc)
+
+# temp 
+n_rounds = 2; id = 1
+
+unboostedq3config = @ntuple modelname="unboostedq3model" model=unboostedq3model n_rounds n_chains=4 seed=100+id
+unboostedq3dict = produce_or_load(pol_q3fitmodel, unboostedq3config, datadir("sims"))
+
+
+# Q1 
+# P(dichy2 == 1)
+w1n = sum(dc.dichy2int .== 1) / (sum(dc.dichy2int .== 0) + sum(dc.dichy2int .== 1))
+# P(dichy2 == 1 | I1 == i1, Y1 == y1, Code == code)
+w1dformula = @formula(dichy2int ~ i1 + y1 + Code) 
+w1dregr = glm(w1dformula, dc, Binomial(), LogitLink())
+w1d = predict(w1dregr)
+w1 = w1n ./ w1d
+w1_98 = quantile(w1, 0.98)
+w1 = [ x > w1_98 ? w1_98 : x for x ∈ w1 ]
+q1 = sum(dc.i4 .* (dc.dichy2int .== 1) .* w1) / sum((dc.dichy2int .== 1) .* w1)
+
+# Q2
+insertcols!(dc, :notdichy2int => 1 .- dc.dichy2int)
+# P(dichy2 == 0)
+w2n = sum(dc.dichy2int .== 0) / (sum(dc.dichy2int .== 0) + sum( dc.dichy2int .== 1))
+# P(dichy2 == 0 | I1 == i1, Y1 == y1, Code == code)
+w2dformula = @formula(notdichy2int ~ i1 + y1 + Code) 
+w2dregr = glm(w2dformula, dc, Binomial(), LogitLink())
+w2d = predict(w2dregr)
+w2 = w2n ./ w2d
+w2_98 = quantile(w2, 0.98)
+w2 = [ x > w2_98 ? w2_98 : x for x ∈ w2 ]
+q2 = sum(dc.i4 .* (dc.notdichy2int .== 1) .* w2) / sum((dc.notdichy2int .== 1) .* w2)
+
+# Q3
+q3formula = @formula(i4 ~ dichy2int + y3 + i3 + i1 + y1 + immune + Code)
+q3dregr = lm(q3formula, dc)
+q3pred_a = predict(q3dregr)
+# reverse effect of dichy2int 
+_effectdichy2int = coef(q3dregr)[2]
+q3pred = [ x == 1 ? -_effectdichy2int : _effectdichy2int for x ∈ dc.dichy2int] .+ q3pred_a
+q3 = sum(q3pred .* (dc.dichy2int .== 1) .* w1) / sum((dc.dichy2int .== 1) .* w1)
+
+nde = q3 - q1
+nie = q2 - q3
+#=
 # correlation between `i4` and `y2` adjusting only for site and time
 correlationformula = @formula(i4 ~ y2 + t^0.5 + log(t) + Code)
 unboostedcorrelationregr = fit(LinearModel, correlationformula, dc)
@@ -743,7 +994,7 @@ pointestimatedirecteffect(unboostedsimulation)
 
 #bs1 = bootstrap(pointestimatedirecteffect, dc, BasicSampling(1000))
 #bci1 = confint(bs1, BasicConfInt(0.95))
-
+=#
 # Simulation with immune boostings, ε = 1
 
 boostedp0 = WXYYZSEIIRRRSp( ; 
@@ -770,10 +1021,62 @@ insertpreviousvalues!(
 )
 
 dc2 = filter(:t => x -> x > 40, boostedsimulation)
-insertgroupedvalues!(dc2, 1:14, 15:28, 29:42, 23)
+insertgroupedvalues!(dc2, 1:7, 8:14, 15:21, 22)
 #insertgroupedvalues!(dc2, 1, 8, 15, 22)
 select!(dc2, :Code, :t, :i4, :i3, :i2, :i1, :y4, :y3, :y2, :y1, :S, :E, :I, :R)
-filter!(:t => x -> x > 340, dc2)
+#filter!(:t => x -> x > 340, dc2)
+
+# dichotomize exposure `y2` 
+insertcols!(
+    dc2, 
+    :dichy2 => cut(dc2.y2, quantile(dc2.y2, [ 0, 0.5, 1 ]); extend=true, labels=[ 0, 1 ])
+)
+# make an integer version that will be accepted by `glm`
+insertcols!(dc2, :dichy2int => levelcode.(dc2.dichy2) .- 1)
+
+boostedq3model = q3fitmodel(dc2)
+
+boostedq3config = @ntuple modelname="boostedq3model" model=boostedq3model n_rounds n_chains=8 seed=110+id
+boostedq3dict = produce_or_load(pol_q3fitmodel, boostedq3config, datadir("sims"))
+
+# Q1 
+# P(dichy2 == 1)
+w1n = sum(dc2.dichy2int .== 1) / (sum(dc2.dichy2int .== 0) + sum( dc2.dichy2int .== 1))
+# P(dichy2 == 1 | I1 = i1, Y1 = y1, Code == code)
+w1dformula = @formula(dichy2int ~ i1 + y1 + Code) 
+w1dregr = glm(w1dformula, dc2, Binomial(), LogitLink())
+w1d = predict(w1dregr)
+w1 = w1n ./ w1d
+w1_98 = quantile(w1, 0.98)
+w1 = [ x > w1_98 ? w1_98 : x for x ∈ w1 ]
+q1 = sum(dc2.i4 .* (dc2.dichy2int .== 1) .* w1) / sum((dc2.dichy2int .== 1) .* w1)
+
+# Q2
+insertcols!(dc2, :notdichy2int => 1 .- dc2.dichy2int)
+# P(dichy2 == 0)
+w2n = sum(dc2.dichy2int .== 0) / (sum(dc2.dichy2int .== 0) + sum( dc2.dichy2int .== 1))
+# P(dichy2 == 0 | I1 = i1, Y1 = y1, Code == code)
+w2dformula = @formula(notdichy2int ~ i1 + y1 + Code) 
+w2dregr = glm(w2dformula, dc2, Binomial(), LogitLink())
+w2d = predict(w2dregr)
+w2 = w2n ./ w2d
+w2_98 = quantile(w2, 0.98)
+w2 = [ x > w2_98 ? w2_98 : x for x ∈ w2 ]
+q2 = sum(dc2.i4 .* (dc2.notdichy2int .== 1) .* w2) / sum((dc2.notdichy2int .== 1) .* w2)
+
+# Q3
+q3formula = @formula(i4 ~ dichy2 + y3 + i3 + i1 + i2 + y1 + Code)
+q3dregr = lm(q3formula, dc2)
+q3pred_a = predict(q3dregr)
+# reverse effect of dichy2int 
+_effectdichy2int = coef(q3dregr)[2]
+q3pred = [ x == 1 ? -_effectdichy2int : _effectdichy2int for x ∈ dc2.dichy2int] .+ q3pred_a
+q3 = sum(q3pred .* (dc2.dichy2int .== 1) .* w1) / sum((dc2.dichy2int .== 1) .* w1)
+
+nde = q3 - q1
+nie = q2 - q3
+
+
 
 boostedcorrelationregr = fit(LinearModel, correlationformula, dc2)
 
