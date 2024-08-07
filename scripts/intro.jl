@@ -375,7 +375,7 @@ function seiirrrs_u0(S, E, I1, I2, R1, R2, R3, Estar)
     return seiirrrs_u0([ S, E, I1, I2, R1, R2, R3, Estar ])
 end
 
-seiirrrs_u0(compartments) = makeu0(compartments, 11)
+seiirrrs_u0(compartments) = makeu0!(compartments, 11)
 
 function wxyyzseiirrrs_u0( ; 
     W=0.0, X=0.0, Y1=0.0, Y2=0.0, Z1=0.0, Z2=0.0, 
@@ -388,13 +388,19 @@ function wxyyzseiirrrs_u0(W, X, Y1, Y2, Z1, Z2, S, E, I1, I2, R1, R2, R3, Estar)
     return wxyyzseiirrrs_u0([ W, X, Y1, Y2, Z1, Z2, S, E, I1, I2, R1, R2, R3, Estar ])
 end
 
-wxyyzseiirrrs_u0(compartments) = makeu0(compartments, 17)
+wxyyzseiirrrs_u0(compartments) = makeu0!(compartments, 17)
 
-function makeu0(compartments::Vector{T}, n) where T <: Real
+function makeu0!(compartments, n)
+    # add compartments for cumulativeinfections, mediantime, λ
+    makeu0!(compartments)
+    @assert length(compartments) == n
+    return compartments
+end 
+
+function makeu0!(compartments::Vector{T}) where T <: Real
     # add compartments for cumulativeinfections, mediantime, λ
     append!(compartments, zeros(T, 3)) 
     @assert minimum(compartments) >= 0 "Cannot initialize u0 with negative values"
-    @assert length(compartments) == n
     return compartments
 end 
 
@@ -835,6 +841,7 @@ end
 end
 
 function pol_q3fitmodel(config)
+    println("using pol_q3fitmodel")
     @unpack model, modelname, n_rounds, n_chains, seed = config
     roundconfig = @ntuple modelname model n_rounds=1 n_chains seed
     round1 = produce_or_load(pol_q3fitmodel1, roundconfig, datadir("sims"))
@@ -858,6 +865,8 @@ function pol_q3fitmodel(config)
 end
 
 function pol_q3fitmodel1(config)
+    println("using pol_q3fitmodel1")
+
     @unpack model, modelname, n_chains, seed = config
     fitted_pt = pigeons( ;
         target=TuringLogPotential(model),
@@ -879,6 +888,8 @@ function pol_q3fitmodel1(config)
 end
 
 function pol_q3fitmodelelement()
+    println("using pol_q3fitmodelelement")
+
     @unpack model, modelname, n_rounds, n_chains, seed = config
     oldfilename = "modelname=$(modelname)_n_chains=$(n_chains)_n_rounds=$(n_rounds - 1)_seed=$(seed).jld2"
     pt = load(datadir("sims", oldfilename))["pt"]
