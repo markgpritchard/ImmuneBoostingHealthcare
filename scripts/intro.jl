@@ -2,13 +2,16 @@
 using DrWatson
 @quickactivate "ImmuneBoostingHealthcare"
 
-using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
+#using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
+using CSV, DataFrames, Random, Turing, Pigeons
 
 ###########################################################################################
 # Functions 
 ###########################################################################################
 
-using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, GLM, StaticArrays
+#using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, GLM, StaticArrays
+using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, StaticArrays
+#using LinearAlgebra: I
 import Base: minimum
 
 ###########################################################################################
@@ -631,6 +634,79 @@ end
 # scripts 
 ###########################################################################################
 
+## Download hospital data 
+
+hospitaldata = CSV.read(datadir("exp_raw", "SiteData.csv"), DataFrame)
+rename!(hospitaldata, Dict(Symbol("Trust Code") => "TrustCode"))
+rename!(hospitaldata, Dict(Symbol("Trust Type") => "TrustType"))
+rename!(hospitaldata, Dict(Symbol("Site Code") => "SiteCode"))
+rename!(hospitaldata, Dict(Symbol("Site Type") => "SiteType"))
+rename!(hospitaldata, Dict(Symbol("Site heated volume (m³)") => "HeatedVolumeString"))
+rename!(
+    hospitaldata, 
+    Dict(
+        Symbol("Single bedrooms for patients with en-suite facilities (No.)") => 
+            "SingleBedsString"
+    )
+)
+filter!(:SiteType => x -> x[1] == '1' || x[1] == '2', hospitaldata)
+insertcols!(
+    hospitaldata,
+    :HeatedVolume => [ 
+        parse(Int, replace(x, ',' => "")) 
+        for x ∈ hospitaldata.HeatedVolumeString
+    ], 
+    :SingleBedsEnsuite => [ 
+        x == "Not Applicable" ? 
+            missing :
+            parse(Int, replace(x, ',' => "")) 
+        for x ∈ hospitaldata.SingleBedsString
+    ]
+)
+
+hospitalbeds = CSV.read(datadir("exp_raw", "GeneralAcuteOccupiedBedsbyTrust.csv"), DataFrame)
+filter!(:TotalBedsAvailable => x -> !ismissing(x) && x != "" && x != " -   ", hospitalbeds)
+for i ∈ axes(hospitalbeds, 1)
+    hospitalbeds.OrgCode[i] = replace(hospitalbeds.OrgCode[i], ' ' => "")
+end
+insertcols!(
+    hospitalbeds,
+    :TotalBeds => [ 
+        parse(Int, replace(hospitalbeds.TotalBedsAvailable[i], ',' => "")) 
+        for i ∈ axes(hospitalbeds, 1)
+    ]
+)
+
+leftjoin!(hospitaldata, hospitalbeds; on= :TrustCode => :OrgCode )
+#=
+insertcols!(
+    hospitaldata,
+    :VolumePerBed => hospitaldata.HeatedVolume ./ hospitaldata.TotalBeds,
+    :ProportionSingleBeds => min.(hospitaldata.SingleBedsEnsuite ./ hospitaldata.TotalBeds, 1.0)
+)
+=#
+insertcols!(
+    hospitaldata,
+    :VolumePerBed => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
+    :ProportionSingleBeds => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
+)
+
+select!(hospitaldata, :TrustCode, :TrustType, :SiteCode, :SiteType, :TotalBeds, :HeatedVolume, :SingleBedsEnsuite, :VolumePerBed, :ProportionSingleBeds)
+
+for trust ∈ unique(hospitaldata.TrustCode)
+    totalsinglebeds = sum(hospitaldata.SingleBedsEnsuite .* (hospitaldata.TrustCode .== trust))
+    totalvolume = sum(hospitaldata.HeatedVolume .* (hospitaldata.TrustCode .== trust))
+    inds = findall(x -> x == trust, hospitaldata.TrustCode)
+    for i ∈ inds 
+        hospitaldata.VolumePerBed[i] = totalvolume / hospitaldata.TotalBeds[i]
+        hospitaldata.ProportionSingleBeds[i] = min(
+            totalsinglebeds / hospitaldata.TotalBeds[i],
+            one(totalsinglebeds / hospitaldata.TotalBeds[i])
+        )
+    end
+end
+
+
 # Simulate community
 
 u0_community = seiirrrs_u0(; S=55_990_000, E=10_000)
@@ -660,6 +736,8 @@ communityprob = ODEProblem(seiirrrs!, u0_community, ( 0.0, 800.0 ), p0_community
 communitysol = solve(communityprob, Vern9(; lazy=false); callback=communitycbs, saveat=10)
 
 const COMMUNITYSOL = deepcopy(communitysol)
+
+communitycases = [ sum(@view COMMUNITYSOL[i][3:4]) for i ∈ eachindex(COMMUNITYSOL) ]
 
 function hospitalaffect!(integrator)
     i = round(Int, integrator.t / 10) + 1
@@ -693,12 +771,15 @@ cbs = CallbackSet(cb, vcb)
 
 # beta parameters for each hospital -- kept constant across different boosting conditions 
 Random.seed!(1729)
+vpds = [ rand(truncated(Normal(510, 290_000), 0, 824_000)) for _ ∈ 1:135 ]
+psbs = [ rand(truncated(Normal(0.221, 0.0205), 0, 1)) for _ ∈ 1:135 ]
+
 allbetas = [ 
-    [ rand(truncated(Normal(x, 0.1), 0, 1)) for x ∈ [ 0.4, 0.4, 0.2, 0.005 ] ] 
-    for _ ∈ 1:300 
+    [ rand(truncated(Normal(x - rand(Beta(4, 6)) * vpds[i] / 220_000 - rand(Beta(4, 6)) * psbs[i], 0.1), 0, 1)) for x ∈ [ 0.8, 0.8, 0.6, 0.405 ] ] 
+    for i ∈ 1:135 
 ]
 
-# Simulate 300 hospitals with no immune boosting.
+# Simulate 135 hospitals with no immune boosting.
 
 u0 = wxyyzseiirrrs_u0(; W=450, S=900)
 
@@ -714,19 +795,301 @@ unboostedp0 = WXYYZSEIIRRRSp( ;
 ) 
 
 unboostedsimulation = simulatehospitals(
-    300, u0, 800, unboostedp0; 
+    135, u0, 800, unboostedp0; 
     abstol=1e-15, callback=cbs, maxiters=5e4, allbetas, saveat=1
 )
 
-simulationproportions!(unboostedsimulation)
-insertcols!(
-    unboostedsimulation, 
-    :Rproportion => unboostedsimulation.R ./ unboostedsimulation.N
+boostedp0 = WXYYZSEIIRRRSp( ; 
+    alpha=SA[ 0.2, 0.0, 0.0, 0.0 ], 
+    beta=SA[ 0.4, 0.2, 0.2, 0.05 ],  # (βhh, βhp, βph, βpp)
+    gamma=0.2, 
+    delta=SA[ 0.2, 0.1], 
+    epsilon=1.0,
+    lambdac=0.01, 
+    rho=0.5, 
+    omega=0.01
+) 
+
+boostedsimulation = simulatehospitals(
+    135, u0, 800, boostedp0; 
+    abstol=1e-15, callback=cbs, maxiters=5e4, allbetas, saveat=1
 )
-insertpreviousvalues!(
-    unboostedsimulation, [ :PatientsProportion, :StaffProportion ], 43; 
-    label=[ :Y, :I ]
+
+for sim ∈ [ unboostedsimulation, boostedsimulation ]
+    insertcols!(
+        sim,
+        :CommunityCases => [ communitycases[sim.t[i] >= 800 ? 80 : round(Int, sim.t[i] / 10, RoundDown)+1] for i ∈ axes(sim, 1) ],
+        :HeatedVolumePerBed => [ vpds[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
+        :ProportionSingleBeds => [ psbs[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
+        :DiagnosedY => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.Y ],
+        :DiagnosedI => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.I ],
+    )
+    insertcols!(
+        sim,
+        :PatientsProportion => sim.DiagnosedY ./ sim.M,
+        :StaffProportion => sim.DiagnosedI ./ sim.N,
+    )
+    insertpreviousvalues!(
+        sim, [ :PatientsProportion, :StaffProportion ], 31; 
+        label=[ :Y, :I ]
+    )
+end
+
+function f(beta0, beta1, beta2, beta3, beta4, beta5)
+    g = [ beta0 + beta1 * x + beta2 * log(x) + beta3 / x + beta4 * sqrt(x) + beta5 * x^2 for x ∈ 1:800 ]
+    gproportion = exp.(g) ./ (exp.(g) .+ 1)
+    h = [ prod(@view gproportion[1:i]) for i ∈ eachindex(gproportion) ]
+    return h
+end
+
+#=
+
+julia> @benchmark f(0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 10000 samples with 1 evaluation.
+ Range (min … max):  142.500 μs … 135.339 ms  ┊ GC (min … max): 0.00% … 99.83%
+ Time  (median):     166.800 μs               ┊ GC (median):    0.00%
+ Time  (mean ± σ):   201.093 μs ±   1.353 ms  ┊ GC (mean ± σ):  6.72% ±  1.00%
+
+     █       
+  ▃▃▅█▆▄▅▃▂▂▂▁▂▂▃▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁ ▂
+  142 μs           Histogram: frequency by time          497 μs <
+
+ Memory estimate: 19.12 KiB, allocs estimate: 3.
+
+
+
+=#
+
+#=
+w_vec = f(0.2, 0.1, 0.3, -0.2, 0.2, 0.1)
+r_vec = zeros(size(unboostedsimulation, 1))
+for i ∈ axes(unboostedsimulation, 1)
+    unboostedsimulation.t[i] == 0 && continue 
+    r_vec[i] = sum([ unboostedsimulation.StaffProportion[i-x] * w_vec[x] for x ∈ 1:(Int(unboostedsimulation.t[i])) ])
+end
+=#
+
+function makervec(data, beta0, beta1, beta2, beta3, beta4, beta5)
+    w_vec = f(beta0, beta1, beta2, beta3, beta4, beta5)
+    #r_vec = zeros(size(data, 1))
+    #r_vec = [ data.t[i] == 0 ? 0.0 : sum(reverse(@view data.StaffProportion[i-(Int(data.t[i])):i-1]) .* @view w_vec[1:(Int(data.t[i]))]) for i ∈ axes(data, 1) ]
+    tvec = Int.(data.t)
+    #r_vec = [ t == 0 ? 0.0 : sum(view(data.StaffProportion, i-1:-1:i-t) .* view(w_vec, 1:t)) for (i, t) ∈ enumerate(tvec) ]
+    sp = data.StaffProportion
+    @fastmath r_vec = [ t == 0 ? 0.0 : sum(view(sp, i-1:-1:i-t) .* view(w_vec, 1:t)) for (i, t) ∈ enumerate(tvec) ]
+    #@fastmath r_vec = [ data.t[i] == 0 ? 0.0 : sum(view(data.StaffProportion, i-1:-1:i-Int(data.t[i])) .* view(w_vec, 1:Int(data.t[i]))) for i ∈ axes(data, 1) ]
+    #for i ∈ axes(data, 1)
+    #    data.t[i] == 0 && continue
+    #    @fastmath r_vec[i] = sum(reverse(@view data.StaffProportion[i-(Int(data.t[i])):i-1]) .* @view w_vec[1:(Int(data.t[i]))])
+        #data.t[i] == 0 && continue
+        #r_vec[i] = sum(reverse(@view data.StaffProportion[i-(Int(data.t[i])):i-1]) .* @view w_vec[1:(Int(data.t[i]))])
+    #end
+    return r_vec
+end
+
+#=
+using BenchmarkTools
+
+
+#=
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 14.864 s (9.11% GC) to evaluate,
+ with a memory estimate of 7.30 GiB, over 428917482 allocations.
+
+julia> @benchmark makervec!(g, gproportion, w_vec, unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 14.894 s (9.02% GC) to evaluate,
+ with a memory estimate of 7.30 GiB, over 428917479 allocations.
+
+julia> @benchmark makervec!(r_vec, g, gproportion, w_vec, unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)     
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 15.105 s (8.97% GC) to evaluate,
+ with a memory estimate of 7.29 GiB, over 428917476 allocations.
+
+julia> @benchmark makervec!(r_vec, g, gproportion, w_vec, unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)     
+BenchmarkTools.Trial: 1 sample with 1 evaluation.
+ Single result which took 41.677 s (8.10% GC) to evaluate,
+ with a memory estimate of 16.23 GiB, over 982812460 allocations.
+
+julia> @benchmark makervec!(r_vec, g, gproportion, w_vec, unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 4 samples with 1 evaluation.
+ Range (min … max):  1.239 s …    1.448 s  ┊ GC (min … max): 12.06% … 12.83%
+ Time  (median):     1.348 s               ┊ GC (median):    12.32%
+ Time  (mean ± σ):   1.346 s ± 111.521 ms  ┊ GC (mean ± σ):  12.40% ±  0.40%
+
+  █    █                                                █  █  
+  █▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁█ ▁
+  1.24 s         Histogram: frequency by time         1.45 s <
+
+ Memory estimate: 1.77 GiB, allocs estimate: 5214857.
+ 
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 5 samples with 1 evaluation.
+ Range (min … max):  1.060 s …   1.116 s  ┊ GC (min … max): 11.99% … 11.37%
+ Time  (median):     1.074 s              ┊ GC (median):    11.84%
+ Time  (mean ± σ):   1.082 s ± 22.150 ms  ┊ GC (mean ± σ):  12.22% ±  1.00%
+
+  █        █    █                 █                       █
+  █▁▁▁▁▁▁▁▁█▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1.06 s         Histogram: frequency by time        1.12 s <
+
+ Memory estimate: 1.77 GiB, allocs estimate: 5214863.
+ 
+ #####
+
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 3 samples with 1 evaluation.
+ Range (min … max):  1.684 s …    2.588 s  ┊ GC (min … max): 42.11% … 43.71%
+ Time  (median):     2.566 s               ┊ GC (median):    44.09%
+ Time  (mean ± σ):   2.279 s ± 515.842 ms  ┊ GC (mean ± σ):  45.89% ±  4.49%
+
+  █                                                       ██
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁██ ▁
+  1.68 s         Histogram: frequency by time         2.59 s <
+
+ Memory estimate: 2.37 GiB, allocs estimate: 14824760.
+ 
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 3 samples with 1 evaluation.
+ Range (min … max):  1.645 s …    2.293 s  ┊ GC (min … max): 37.77% … 41.43%
+ Time  (median):     1.821 s               ┊ GC (median):    40.01%
+ Time  (mean ± σ):   1.919 s ± 335.051 ms  ┊ GC (mean ± σ):  39.93% ±  1.85%
+
+  █              █                                         █
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  1.64 s         Histogram: frequency by time         2.29 s <
+
+ Memory estimate: 1.81 GiB, allocs estimate: 9079994. 
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 5 samples with 1 evaluation.
+ Range (min … max):  773.415 ms …    1.362 s  ┊ GC (min … max): 32.90% … 47.17%
+ Time  (median):        1.086 s               ┊ GC (median):    37.53%
+ Time  (mean ± σ):      1.045 s ± 239.990 ms  ┊ GC (mean ± σ):  39.97% ±  8.91%
+
+  █      █                        █       █                   █
+  █▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  773 ms           Histogram: frequency by time          1.36 s <
+
+ Memory estimate: 1.18 GiB, allocs estimate: 7327420.
+
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 5 samples with 1 evaluation.
+ Range (min … max):  761.423 ms …    1.393 s  ┊ GC (min … max): 31.45% … 45.20%
+ Time  (median):     848.242 ms               ┊ GC (median):    33.21%
+ Time  (mean ± σ):      1.028 s ± 297.130 ms  ┊ GC (mean ± σ):  39.32% ±  7.12%
+
+  █     █ █                                           █       █
+  █▁▁▁▁▁█▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁█ ▁
+  761 ms           Histogram: frequency by time          1.39 s <
+
+ Memory estimate: 1.13 GiB, allocs estimate: 6117525.
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 6 samples with 1 evaluation.
+ Range (min … max):  734.703 ms …    1.374 s  ┊ GC (min … max): 31.67% … 47.45%
+ Time  (median):     899.307 ms               ┊ GC (median):    31.33%
+ Time  (mean ± σ):   990.718 ms ± 240.868 ms  ┊ GC (mean ± σ):  38.27% ±  8.94%
+
+  ▁          █       ▁                       ▁                ▁
+  █▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  735 ms           Histogram: frequency by time          1.37 s <
+
+ Memory estimate: 1.10 GiB, allocs estimate: 6273229.
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 6 samples with 1 evaluation.
+ Range (min … max):  667.358 ms …    1.070 s  ┊ GC (min … max): 31.65% … 33.36%
+ Time  (median):     897.182 ms               ┊ GC (median):    38.41%
+ Time  (mean ± σ):   882.302 ms ± 191.369 ms  ┊ GC (mean ± σ):  37.13% ±  6.20%
+
+  ▁  ▁            ▁                                    ▁      █
+  █▁▁█▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁█ ▁
+  667 ms           Histogram: frequency by time          1.07 s <
+
+ Memory estimate: 882.63 MiB, allocs estimate: 3087999.
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 12 samples with 1 evaluation.
+ Range (min … max):  335.745 ms … 658.931 ms  ┊ GC (min … max): 42.81% … 39.47%
+ Time  (median):     372.866 ms               ┊ GC (median):    44.18%
+ Time  (mean ± σ):   418.665 ms ± 105.730 ms  ┊ GC (mean ± σ):  43.49% ±  2.27%
+
+  ▁█ ▁▁ ▁▁▁    ▁                       ▁    ▁                 ▁
+  ██▁██▁███▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+  336 ms           Histogram: frequency by time          659 ms <
+
+ Memory estimate: 603.12 MiB, allocs estimate: 1219732.
+
+julia> @benchmark makervec(unboostedsimulation, 0.2, -0.3, 0.1, -0.1, 0.4, -0.03)
+BenchmarkTools.Trial: 14 samples with 1 evaluation.
+ Range (min … max):  288.043 ms … 441.850 ms  ┊ GC (min … max): 40.58% … 42.34%
+ Time  (median):     362.122 ms               ┊ GC (median):    45.36%
+ Time  (mean ± σ):   371.542 ms ±  41.678 ms  ┊ GC (mean ± σ):  42.65% ±  2.69%
+
+  █                 █   ███ ██   █   ██           ██       █  █  
+  █▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁███▁██▁▁▁█▁▁▁██▁▁▁▁▁▁▁▁▁▁▁██▁▁▁▁▁▁▁█▁▁█ ▁
+  288 ms           Histogram: frequency by time          442 ms <
+
+ Memory estimate: 605.29 MiB, allocs estimate: 1336027.
+=#
+=#
+
+@model function fitmodel(data, recordedy2)
+    beta0 ~ Normal(0, 10)
+    beta1 ~ Normal(0, 10)
+    beta2 ~ Normal(0, 10)
+    beta3 ~ Normal(0, 10)
+    beta4 ~ Normal(0, 10)
+    beta5 ~ Normal(0, 10)
+
+    gamma0 ~ Normal(0, 1)
+    gamma1 ~ Normal(0, 1)
+    gamma2 ~ Normal(0, 1)
+    gamma3 ~ Normal(0, 1)
+    gamma4 ~ Normal(0, 1)
+    gamma5 ~ Normal(0, 1)
+    gamma6 ~ Normal(0, 1)
+    gamma7 ~ Normal(0, 1)
+    gamma8 ~ Normal(0, 1)
+    gamma9 ~ Normal(0, 1)
+
+    sigma2 ~ Exponential(1)
+    
+    r_vec = makervec(data, beta0, beta1, beta2, beta3, beta4, beta5)
+
+    y2predod = [ gamma0 + gamma1 * data.Y_t1[i] + gamma2 * data.I_t1[i] + gamma3 * data.I_t11[i] + gamma4 * data.Y_t21[i] + gamma5 * data.I_t21[i] + gamma6 * r_vec[i] + gamma7 * data.ProportionSingleBeds[i] + gamma8 * data.HeatedVolumePerBed[i] + gamma9 * data.CommunityCases[i] for i ∈ axes(data, 1) ]
+    y2pred = exp.(y2predod) ./ (1 .+ exp.(y2predod))
+
+    t = data.t
+
+    for i ∈ eachindex(y2predod)
+        t[i] < 40 && continue 
+        Turing.@addlogprob! logpdf(Normal(recordedy2[i], sigma2), y2predod[i])
+    end
+end
+
+function fitmodel_target(data, recordedy2)
+    return Pigeons.TuringLogPotential(fitmodel(data, recordedy2))
+end
+
+recordedy2 = log.(1e-10 .+ unboostedsimulation.I_t21 ./ (1 .- unboostedsimulation.I_t21))
+
+unboostedfitted_pt = pigeons( ;
+    target=fitmodel_target(unboostedsimulation, recordedy2), 
+    n_rounds=2,
+    n_chains=4,
+    multithreaded=true,
+    record=[ traces; record_default() ],
+    seed=(1),
+    variational=GaussianReference(),
 )
+
+unboostedfitted_chain = Chains(unboostedfitted_pt)
+
 
 function immunewaningvector(
     t::AbstractVector, locationcodes::AbstractVector, 
@@ -769,7 +1132,10 @@ end
 #
 #beta2 = 0.02; beta1 = 0.3; betahalf =-0.2; betazero = 0.2; betaminus1 = -1.2
 
-function immunewaning(t::AbstractVector, locationcodes::AbstractVector, infections::AbstractVector, beta2, beta1, betahalf, betazero, betaminus1)
+function immunewaning(
+    t::AbstractVector, locationcodes::AbstractVector, infections::AbstractVector, 
+    beta2, beta1, betahalf, betazero, betaminus1
+)
     f = immunewaningvector(t, locationcodes, beta2, beta1, betahalf, betazero, betaminus1)
     immune = zeros(length(infections))
     for code ∈ unique(locationcodes)
@@ -787,28 +1153,49 @@ function immunewaning(t::AbstractVector, locationcodes::AbstractVector, infectio
     return immune
 end
 
-function immunewaning(data::DataFrame, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
-    return immunewaning(getproperty(data, t), getproperty(data, locationcodes), getproperty(data, infections), beta2, beta1, betahalf, betazero, betaminus1)
+function immunewaning(
+    data::DataFrame, t, locationcodes, infections, 
+    beta2, beta1, betahalf, betazero, betaminus1
+)
+    return immunewaning(
+        getproperty(data, t), getproperty(data, locationcodes), getproperty(data, infections), 
+        beta2, beta1, betahalf, betazero, betaminus1
+    )
 end
 
-function addimmunewaning!(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
-    insertcols!(data, :immune => immunewaning(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1))
+function addimmunewaning!(
+    data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1
+)
+    insertcols!(
+        data, 
+        :immune => immunewaning(
+            data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1
+        )
+    )
 end
 
-function replaceimmunewaning!(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
-    data.immune = immunewaning(data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1)
+function replaceimmunewaning!(
+    data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1
+)
+    data.immune = immunewaning(
+        data, t, locationcodes, infections, beta2, beta1, betahalf, betazero, betaminus1
+    )
 end
+
+#using FillArrays
 
 @model bcodevalue(prior) = b ~ prior
 
-@model function q3fitmodel(data)
+@model function q3fitmodel(prevalence, data)
     # function for immune waning 
+    println("check1")
     ℓ_codes = length(unique(data.Code))
     beta2  ~ Normal(0, 1)
     beta1  ~ Normal(0, 1)
     betahalf ~ Normal(0, 1)
     betazero ~ Normal(0, 1) 
     betaminus1 ~ Normal(0, 1)
+    println("check2")
 
     b1 ~ Normal(0, 1)
     b2 ~ Normal(0, 1)
@@ -822,8 +1209,10 @@ end
     end
 
     sigma2 ~ Exponential(1)
+    println("check3")
 
     replaceimmunewaning!(data, :t, :Code, :i4, beta2, beta1, betahalf, betazero, betaminus1)
+    println("check4")
 
     q3regr = (
         b1 .* data.dichy2int .+ 
@@ -836,8 +1225,21 @@ end
             b_code[i] .* (data.Code .== code) for (i, code) ∈ enumerate(unique(data.Code))
         ])
     )
+    println("check5")
 
-    data.i4 ~ MvNormal(q3regr, sigma2)
+    println("length(prevalence) = $(length(prevalence)) == length(q3regr) = $(length(q3regr)) : $(length(data.i4) == length(q3regr))")
+
+    #println(q3regr)
+
+    println(describe(q3regr))
+
+    #datai4 = data.i4
+
+    println("sigma2=$sigma2")
+    #datai4 ~ MvNormal(q3regr, sigma2 * I)
+    for i ∈ eachindex(prevalence)
+        prevalence[i] ~ Normal(q3regr[i], sigma2)
+    end
 end
 
 function pol_q3fitmodel(config)
@@ -887,7 +1289,7 @@ function pol_q3fitmodel1(config)
     )
 end
 
-function pol_q3fitmodelelement()
+function pol_q3fitmodelelement(config)
     println("using pol_q3fitmodelelement")
 
     @unpack model, modelname, n_rounds, n_chains, seed = config
@@ -908,22 +1310,10 @@ function pol_q3fitmodelelement()
 end
 
 
-#=
-fitted_pt = pigeons( ;
-    target=TuringLogPotential(model),
-    n_rounds=1,
-    n_chains=4,
-    multithreaded=true,
-    record=[ traces; record_default() ],
-    seed=1,
-    variational=GaussianReference(),
-)
-
-fitted_chains = Chains(fitted_pt)
 
 
-insertcols!(unboostedsimulation, :immune => immune)
-=#
+#insertcols!(unboostedsimulation, :immune => immune)
+
 
 dc = filter(:t => x -> x > 40, unboostedsimulation)
 insertgroupedvalues!(dc, 1:7, 8:14, 15:21, 22)
@@ -941,10 +1331,34 @@ insertcols!(dc, :dichy2int => levelcode.(dc.dichy2) .- 1)
 # create column `immune` which is used in fitting values 
 addimmunewaning!(dc, :t, :Code, :i4, 0, 0, 0, 0, 0)
 
-unboostedq3model = q3fitmodel(dc)
+#unboostedq3model = q3fitmodel(dc)
 
 # temp 
-n_rounds = 2; id = 1
+n_rounds = 3; id = 1
+
+unboostedq3model = q3fitmodel(dc.i4, dc)
+
+fitted_pt = pigeons( ;
+    target=TuringLogPotential(unboostedq3model),
+    n_rounds=1,
+    n_chains=4,
+    multithreaded=true,
+    record=[ traces; record_default() ],
+    seed=1,
+    variational=GaussianReference(),
+)
+
+fitted_chains = Chains(fitted_pt)
+
+asdf_pt = pigeons( ;
+    target=TuringLogPotential(unboostedq3model),
+    n_rounds=2,
+    n_chains=4,
+    multithreaded=true,
+    record=[ traces; record_default() ],
+    seed=1,
+    variational=GaussianReference(),
+)
 
 unboostedq3config = @ntuple modelname="unboostedq3model" model=unboostedq3model n_rounds n_chains=4 seed=100+id
 unboostedq3dict = produce_or_load(pol_q3fitmodel, unboostedq3config, datadir("sims"))
