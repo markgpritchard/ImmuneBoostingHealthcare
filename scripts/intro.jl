@@ -3,20 +3,370 @@ using DrWatson
 @quickactivate "ImmuneBoostingHealthcare"
 
 #using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
-using CSV, DataFrames, Random, Turing, Pigeons
+using CSV, DataFrames, Random, Turing#, Pigeons
+using SparseArrays 
+
+using CairoMakie
 
 ###########################################################################################
 # Functions 
 ###########################################################################################
 
 #using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, GLM, StaticArrays
-using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, StaticArrays
+#using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions, StaticArrays
+using CategoricalArrays, CSV, DataFrames, Dates, Distributions, StaticArrays
 #using LinearAlgebra: I
 import Base: minimum
+using CSV, DataFrames, Dates, Distributions, StaticArrays
+
 
 ###########################################################################################
 # Structs 
 ###########################################################################################
+
+function makechangematrix(compartments, pairs::Vector{Pair{Int64, Int64}})
+    mat = spzeros(Int, length(pairs), compartments)
+    for (i, p) ∈ enumerate(pairs)
+        mat[i, p.first] = -1
+        mat[i, p.second] = 1
+    end
+    return mat
+end
+
+HOSPITALSEIIRRRSCHANGEMATRIX = makechangematrix(
+    34,
+    [
+        # hospital patients: SEIIR with two "diagnosed" compartments plus "diagnosed and recovered"
+        1 => 2,  # Sp -> Ep, patient infections
+        2 => 3,  # Ep -> I1p, patient progression 1
+        3 => 4,  # I1p -> I2p, patient progression 2
+        3 => 5,  # I1p -> I1p*, patient diagnosis 1 
+        4 => 6,  # I2p -> I2p*, patient diagnosis 2
+        5 => 6,  # I1p* -> I2p*, patient diagnosed progression
+        4 => 7,  # I2p -> Rp, patient recovery 
+        6 => 8,  # I2p* -> Rp*, patient diagnosed recovery 
+        # healthcare workers: SEIIRRRS with ten "isolated" (non-infectious) compartments  
+        9 => 10,  # Sh -> Eh, healthcare worker infections
+        10 => 11,  # Eh -> I1h, healthcare worker progression 1
+        11 => 12,  # I1h -> I2h, healthcare worker progression 2
+        11 => 25,  # I1h -> X1h*, healthcare worker diagnosis 1 
+        12 => 25,  # I2h -> X1h*, healthcare worker diagnosis 2
+        12 => 13,  # I2h -> R1h, healthcare worker recovery 
+        13 => 14,  # R1h -> R2h, healthcare worker waning 1 
+        14 => 15,  # R2h -> R3h, healthcare worker waning 2 
+        15 => 9,  # R3h -> Sh, healthcare worker waning 3
+        # isolated compartment transitions come later
+        # discharges
+        1 => 16,  # Sp -> Sc, susceptible discharges
+        2 => 17,  # Ep -> Ec, exposed discharges
+        3 => 18,  # I1p -> I1c, infectious discharges 1
+        4 => 19,  # I2p -> I2c, infectious discharges 2
+        5 => 20,  # I1p* -> I1c*, diagnosed infectious discharges 1
+        6 => 21,  # I2p* -> I2c*, diagnosed infectious discharges 2
+        7 => 23,  # Rp -> R2c, immune discharges
+        8 => 23,  # Rp* -> R2c, recovered discharges
+        # community (will be approximately deterministic): SEIIRRRS with two "diagnosed" compartments
+        16 => 17,  # Sc -> Ec, community infections
+        17 => 18,  # Ec -> I1c, community progression 1
+        18 => 19,  # I1c -> I2c, community progression 2
+        18 => 20,  # I1c -> I1c*, community diagnosis 1 
+        19 => 21,  # I2c -> I2c*, community diagnosis 2
+        20 => 21,  # I1c* -> I2c*, community diagnosed progression
+        19 => 22,  # I2c -> R1c, community recovery 
+        21 => 22,  # I2c* -> R1c, community diagnosed recovery 
+        22 => 23,  # R1c -> R2c, community waning 1 
+        23 => 24,  # R2c -> R3c, community waning 2 
+        24 => 16,  # R3c -> Sc, community waning 3
+        # admissions (will be calculated to replace discharges)
+        16 => 1,  # Sp -> Sc, susceptible admissions
+        17 => 2,  # Ec -> Ep, exposed admissions
+        18 => 3,  # I1c -> I1p, infectious admissions 1
+        19 => 4,  # I2c -> I2p, infectious admissions 2
+        20 => 5,  # I1c* -> I1p*, diagnosed infectious admissions 1
+        21 => 6,  # I2c* -> I2p*, diagnosed infectious admissions 2
+        22 => 7,  # R1c -> Rp, immune admissions 1
+        23 => 7,  # R2c -> Rp, immune admissions 2
+        24 => 7,  # R3c -> Rp, immune admissions 3
+        # progression of isolated healthcare workers (all occur at rate = 1)
+        25 => 26,  # X1h* -> X2h*
+        26 => 27,  # X2h* -> X3h*
+        27 => 28,  # X3h* -> X4h*
+        28 => 29,  # X4h* -> X5h*
+        29 => 30,  # X5h* -> X6h*
+        30 => 31,  # X6h* -> X7h*
+        31 => 32,  # X7h* -> X8h*
+        32 => 33,  # X8h* -> X9h*
+        33 => 34,  # X9h* -> X10h*
+        34 => 22,  # X10h* -> R1h
+    ]
+)
+
+
+function _changematrixsources(mat)
+    ℓ = size(mat, 1)
+    sources = Vector{Int}(undef, ℓ)
+    for i ∈ axes(mat, 1)
+        @assert sum(mat[i, :] .== -1) == 1  # exactly one source per row 
+        sources[i] = findfirst(x -> x == -1, mat[i, :])
+    end
+    return sources
+end
+
+WXYYZSEIIRRRSCHANGEMATRIX = sparse
+
+
+XYXSISCHANGEMATRIX = [
+    -1   1   0   0  # patient infections 
+     1  -1   0   0  # patient recoveries
+     0   0  -1   1  # healthcare worker infections 
+     0   0   1  -1  # healthcare worker recoveries
+    -1   0   0   0  # susceptible discharges
+     0  -1   0   0  # infected discharges
+]
+
+WXYYZSEIIRRRSCHANGEMATRIX = [
+    #Sp   Ep   I1p  I2p  Rp   I1p* I2p* Rp*  Sh   Eh   I1h  I2h  R1h  R2h  R3h  I1h* 
+    # community infections 
+    -1   1   0   0   0   0   0   0   0   0   0   0   0   0   0   0  # patient infections 
+     0  -1   1   0   0   0   0   0   0   0   0   0   0   0   0   0  # patient infection progressions 1
+     0   0  -1   1   0   0   0   0   0   0   0   0   0   0   0   0  # patient infection progressions 2
+     0   0   0  -1   1   0   0   0   0   0   0   0   0   0   0   0  # patient recoveries
+     0   0  -1   0   0   1   0   0   0   0   0   0   0   0   0   0  # patient diagnosis 1 
+     0   0   0  -1   0   0   1   0   0   0   0   0   0   0   0   0  # patient diagnosis 2 
+     0   0   0   0   0  -1   1   0   0   0   0   0   0   0   0   0  # diagnosed patient infection progressions
+     0   0   0   0   0   0  -1   1   0   0   0   0   0   0   0   0  # diagnosed patient infection recoveries
+     0   0   0   0   0   0   0   0  -1   1   0   0   0   0   0   0  # healthcare worker infections 
+     0   0   0   0   0   0   0   0   0  -1   1   0   0   0   0   0  # healthcare infection progressions 1
+     0   0   0   0   0   0   0   0   0   0  -1   1   0   0   0   0  # healthcare infection progressions 2
+     0   0   0   0   0   0   0   0   0   0   0  -1   1   0   0   0  # healthcare recoveries
+     0   0   0   0   0   0   0   0   0   0   0   0  -1   1   0   0  # healthcare waning 1
+     0   0   0   0   0   0   0   0   0   0   0   0   0  -1   1   0  # healthcare waning 2
+     0   0   0   0   0   0   0   0   1   0   0   0   0   0  -1   0  # healthcare waning 3
+     0   0   0   0   0   0   0   0   0   0   0   0   1  -1   0   0  # healthcare boosting 2
+     0   0   0   0   0   0   0   0   0   0   0   0   1   0  -1   0  # healthcare boosting 3
+     0   0   0   0   0   0   0   0   0   0  -1   0   0   0   0   1  # healthcare diagnosis 1 
+     0   0   0   0   0   0   0   0   0   0   0  -1   0   0   0   1  # healthcare diagnosis 2      
+    -1   0   0   0   0   0   0   0   0   0   0   0   0   0   0   0  # susceptible discharges
+     0  -1   0   0   0   0   0   0   0   0   0   0   0   0   0   0  # exposed discharges
+     0   0  -1   0   0   0   0   0   0   0   0   0   0   0   0   0  # infectious 1 discharges
+     0   0   0  -1   0   0   0   0   0   0   0   0   0   0   0   0  # infectious 2 discharges
+     0   0   0   0  -1   0   0   0   0   0   0   0   0   0   0   0  # immune discharges
+     0   0   0   0   0  -1   0   0   0   0   0   0   0   0   0   0  # diagnosed infectious 1 discharges
+     0   0   0   0   0   0  -1   0   0   0   0   0   0   0   0   0  # diagnosed infectious 2 discharges
+     0   0   0   0   0   0   0  -1   0   0   0   0   0   0   0   0  # diagnosed immune discharges
+]
+
+WXYYZSEIIRRRSSOURCES = _changematrixsources(WXYYZSEIIRRRSCHANGEMATRIX)
+
+function wxyyzseiirrrs!(u, p)
+    # forces of infection 
+    λh = p.βhh * sum(@view u[8:9]) / sum(@view u[6:12]) + 
+        p.βhp * sum(@view u[3:4]) / sum(@view u[1:5]) + 
+        p.λc
+    λp = p.βph * sum(@view u[8:9])  / sum(@view u[6:12]) + 
+        p.βpp * sum(@view u[3:4]) / sum(@view u[1:5])
+
+    rates = [
+        [
+            λp * u[1],  # patient infections 
+            p.ρ * u[2]  # patient infection progressions 1
+        ];
+        2 .* p.γ .* u[3:4];  # patient infection progressions / recoveries
+        p.ηp .* u[3:4];  # patient diagnosis 
+        2 .* p.γ .* u[6:7];  # diagnosed patient infection progressions / recoveries
+        [
+            λh * u[9],  # healthcare worker infections 
+            p.ρ * u[10],  # healthcare infection progressions 1
+        ];
+        2 .* p.γ .* u[11:12];  # healthcare infection progressions  / recoveries
+        3 .* p.ω .* u[13:15];  # healthcare waning 
+        λh * p.ψ .* u[14:15];  # healthcare boosting 
+        p.ηh .* u[11:12];  # healthcare diagnosis
+        p.δ1 .* u[1:2];  # susceptible / exposed discharges
+        p.δ2 .* u[3:4];  # infectious discharges
+        [ p.δ1 .* u[5] ]; # immune discharges
+        p.δ2 .* u[6:7];  # diagnosed infectious discharges
+        [ p.δ1 .* u[8] ]  # diagnosed immune discharges
+    ]
+
+    events = [ taustepvalue(u, rate, i) for (rate, i) ∈ zip(rates, WXYYZSEIIRRRSSOURCES) ]
+        
+    return events
+end
+
+function taustepvalue(source::T, rate) where T
+    estimate::T = rand(Poisson(rate))
+    if estimate > source
+        return source 
+    else 
+        return estimate 
+    end
+end
+
+taustepvalue(sources::AbstractVector, rate, ind) = taustepvalue(sources[ind], rate)
+
+function taustep!(ratesfunction, u, p, changematrix)
+    rates = ratesfunction(u, p)
+    events = [ rand(Poisson(rate)) for rate ∈ rates ]
+
+    @assert size(changematrix, 1) == length(events)
+    @assert size(changematrix, 2) == length(u)
+
+    for (i, event) ∈ enumerate(events) 
+        u += event * changematrix[i, :] 
+        if minimum(u) < 0  # then this cycle has made more events than it could have 
+            reduction = -minimum(u)  # how many events were too many 
+            u += -event * changematrix[i, :]  # undo what you just did 
+            u += (event - reduction) * changematrix[i, :]  # re-do it with reduced number of events
+        end 
+    end 
+    return u
+end
+
+function xyxsisrates(u, p)
+    # forces of infection 
+    λh = p.βhh * u[4] / sum(@view u[3:4]) + p.βhp * u[2] / sum(@view u[1:2])
+    λp = p.βph * u[4]  / sum(@view u[3:4]) + p.βpp * u[2] / sum(@view u[1:2])
+
+    rates = [
+        λp * u[1],  # patient infections 
+        p.γ * u[2],  # patient recoveries
+        λh * u[3],  # healthcare worker infections 
+        p.γ * u[4],  # healthcare worker recoveries
+        p.δ1 * u[1],  # susceptible discharges
+        p.δ2 * u[2]  # infected discharges
+    ]
+
+    return rates
+end
+
+function wxyyzseiirrrsrates(u, p)
+    # forces of infection 
+    λh = p.βhh * sum(@view u[8:9]) / sum(@view u[6:12]) + 
+        p.βhp * sum(@view u[3:4]) / sum(@view u[1:5]) + 
+        p.λc
+    λp = p.βph * sum(@view u[8:9])  / sum(@view u[6:12]) + 
+        p.βpp * sum(@view u[3:4]) / sum(@view u[1:5])
+
+    rates = [
+        [
+            λp * u[1],  # patient infections 
+            p.ρ * u[2],  # patient infection progressions 1
+        ];
+        2 .* p.γ .* u[3:4];  # patient infection progressions / recoveries
+        [
+            λh * u[6],  # healthcare worker infections 
+            p.ρ * u[7],  # healthcare infection progressions 1
+        ];
+        2 .* p.γ .* u[8:9];  # healthcare infection progressions  / recoveries
+        3 .* p.ω .* u[10:12];  # healthcare waning 
+        p.δ1 .* u[1:2];  # susceptible discharges
+        p.δ2 .* u[3:4];  # infectious discharges
+        [ p.δ1 * u[5] ]  # immune discharges
+    ]
+
+    return rates
+end
+
+wxyyzseiirrrs!(u, p) = taustep!(wxyyzseiirrrsrates, u, p, WXYYZSEIIRRRSCHANGEMATRIX)
+
+function wxyyzseiirrrs(u0, p, t, αvec, rvec)
+    umat = zeros(Int, t, 12)
+    u = u0
+    poph = sum(@view u0[1:5])
+    for i ∈ 1:t
+        umat[i, :] .= u
+        u = wxyyzseiirrrs!(u, p)
+        upopi = sum(@view u[1:5])
+        u1 = round(Int, αvec[i] * (poph - upopi))
+        u2 = poph - upopi - u1 
+        u[1] += u1 
+        u[2] += u2
+    end
+    return umat
+end
+
+function xyxsisdf(u0, p, t, αvec, id::Int=1)
+    umat = xyxsis(u0, p, t, αvec)
+    df = DataFrame(
+        :t => 1:t,
+        :Hospital => id,
+        :X => umat[:, 1],
+        :Y => umat[:, 2],
+        :M => [ sum(@view umat[i, 1:2]) for i ∈ 1:t ],
+        :S => umat[:, 1],
+        :I => umat[:, 1],
+        :N => [ sum(@view umat[i, 3:4]) for i ∈ 1:t ],
+    )
+    return df 
+end
+
+function xyxsisdf(u0, p, t, αvec, ids::AbstractVector{T}) where T
+    df = DataFrame(
+        :t => Int[ ],
+        :Hospital => T[ ],
+        :X => Int[ ],
+        :Y => Int[ ],
+        :M => Int[ ],
+        :S => Int[ ],
+        :I => Int[ ],
+        :N => Int[ ],
+    )
+
+    for id ∈ ids
+        append!(df, xyxsisdf(u0, p, t, αvec, id))
+    end 
+
+    return df
+end
+
+
+
+
+ic = let 
+    i = zeros(800)
+    i[1] = 0.005
+    for j ∈ 2:800
+        i[j] = 0.8 * i[j-1] + 0.4 * (1 + 0.75 * cos(2π * j / 365)) * i[j-1] * (1 - i[j-1])
+    end
+    i
+end
+
+asdf = xyxsis([ 450, 0, 900, 0 ], ( βhh=0.2, βhp=0.1, βph=0.4, βpp=0.05, γ=0.2, δ1=0.2, δ2=0.16 ), 800, ic)
+
+u0 = [ 450, 0, 900, 0 ]
+
+uvector = let 
+    uv = zeros(Int, 800, 4)
+    u = u0 
+    for i ∈ 1:800
+        println("i=$i, u=$u")
+        uv[i, :] .= u
+        p = ( α=(ic[i]), βhh=0.2, βhp=0.1, βph=0.4, βpp=0.05, γ=0.2, δ1=0.2, δ2=0.16 )
+        u = xyxsis!(u, p)
+        un = u[1] + u[2]
+        u1 = round(Int, ic[i] * (450 - un))
+        u2 = 450 - un - u1 
+        u[1] += u1 
+        u[2] += u2
+    end
+    uv
+end
+
+
+
+#=
+function model(u::AbstractVector{T}, p, t) where T 
+    # compartments 
+    Sp, I1p, I2p, Rp, XI1p, XI2p, XRp, Sh, I1h, I2h, R1h, R2h, R3h, Vh, X1h, X2h, X3h, X4h, X5h, X6h, X7h, X8h, X9h, X10h, Sc, Ic, Rc = u 
+
+    # parameters (some parameters are hard-coded)
+    α1, α2, α3, βhc, βhh, βhp, βph, βpp, δp, δh, η1, η2, ν, ψ, ω
+
+    u2 = Vector{T}(undef, 27)
+    
+    u2[1] = Sp * 5//6 
+=#
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -115,6 +465,12 @@ _modifyp(::AbstractParameters{T}, v::AbstractVector{T}, ::Symbol) where T = v
 ###########################################################################################
 # Simulations 
 ###########################################################################################
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Susceptible--infectious--susceptible model
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Model with force of infection from patients, other staff and community
@@ -541,7 +897,7 @@ function calculatetotaleffect(data)
     totaleffectregr = fit(LinearModel, totaleffectformula, data; wts=w)
     return @ntuple totaleffectregr w wd wn w_unlimited w98
 end
-=#
+
 function calculatedirecteffect(data)
     Ey2nformula = @formula(Y_t11 ~ t^0.5 + log(t) + Code)
     Ey2nregr = fit(LinearModel, Ey2nformula, data)
@@ -616,7 +972,7 @@ function pointestimatetotaleffect(data)
     @unpack totaleffectregr = calculatetotaleffect(data)
     return coef(totaleffectregr)[2]
 end
-
+=#
 ###########################################################################################
 # Extra functions 
 ###########################################################################################
@@ -754,7 +1110,7 @@ function hospitalaffect!(integrator)
     )
 end
 hospitalaffecttimes = collect(10:10:800)
-cb = PresetTimeCallback(hospitalaffecttimes, hospitalaffect!)
+cb = PresetTimeCallback(hospitalaffecttimes, hospitalaffect!; save_positions=( false, false ))
 
 function vaccinate!(integrator) 
     vaccn = 0.0
@@ -765,7 +1121,7 @@ function vaccinate!(integrator)
     end
     integrator.u[14] += vaccn 
 end
-vcb = PresetTimeCallback(300, vaccinate!)
+vcb = PresetTimeCallback(300, vaccinate!; save_positions=( false, false ))
 
 cbs = CallbackSet(cb, vcb)
 
@@ -833,6 +1189,7 @@ for sim ∈ [ unboostedsimulation, boostedsimulation ]
         sim, [ :PatientsProportion, :StaffProportion ], 31; 
         label=[ :Y, :I ]
     )
+    insertgroupedvalues!(sim, 1:10, 11:20, 21:30, 31)
 end
 
 function f(beta0, beta1, beta2, beta3, beta4, beta5)
@@ -1039,12 +1396,10 @@ BenchmarkTools.Trial: 14 samples with 1 evaluation.
 =#
 
 @model function fitmodel(data, recordedy2)
-    beta0 ~ Normal(0, 10)
-    beta1 ~ Normal(0, 10)
-    beta2 ~ Normal(0, 10)
-    beta3 ~ Normal(0, 10)
-    beta4 ~ Normal(0, 10)
-    beta5 ~ Normal(0, 10)
+    #beta0 ~ Normal(0, 10)
+    #beta1 ~ Normal(0, 10)
+    #beta2 ~ Normal(0, 10)
+    #beta3 ~ Normal(0, 10)
 
     gamma0 ~ Normal(0, 1)
     gamma1 ~ Normal(0, 1)
@@ -1056,27 +1411,71 @@ BenchmarkTools.Trial: 14 samples with 1 evaluation.
     gamma7 ~ Normal(0, 1)
     gamma8 ~ Normal(0, 1)
     gamma9 ~ Normal(0, 1)
+    gamma10 ~ Normal(0, 1)
 
     sigma2 ~ Exponential(1)
     
-    r_vec = makervec(data, beta0, beta1, beta2, beta3, beta4, beta5)
+    #r_vec = makervec(data, beta0, beta1, beta2, beta3, 0, 0)
 
-    y2predod = [ gamma0 + gamma1 * data.Y_t1[i] + gamma2 * data.I_t1[i] + gamma3 * data.I_t11[i] + gamma4 * data.Y_t21[i] + gamma5 * data.I_t21[i] + gamma6 * r_vec[i] + gamma7 * data.ProportionSingleBeds[i] + gamma8 * data.HeatedVolumePerBed[i] + gamma9 * data.CommunityCases[i] for i ∈ axes(data, 1) ]
+    tvec = data.t
+
+    #y2predod = [ gamma0 + gamma1 * data.y1[i] + gamma2 * data.i1[i] + gamma3 * data.i2[i] + gamma4 * data.y3[i] + gamma5 * data.i3[i] + gamma6 * r_vec[i] + gamma7 * data.ProportionSingleBeds[i] + gamma8 * data.HeatedVolumePerBed[i] + gamma9 * data.CommunityCases[i] for i ∈ axes(data, 1) ]
+    y2predod = [ gamma0 + gamma1 * data.y1[i] + gamma2 * data.i1[i] + gamma3 * data.i2[i] + gamma4 * data.y3[i] + gamma5 * data.i3[i] + gamma6 * data.ProportionSingleBeds[i] + gamma7 * data.HeatedVolumePerBed[i] + gamma8 * data.CommunityCases[i] + gamma9 * tvec[i] + gamma10 * (tvec[i])^2 for i ∈ axes(data, 1) ]
     y2pred = exp.(y2predod) ./ (1 .+ exp.(y2predod))
 
-    t = data.t
+    
 
-    for i ∈ eachindex(y2predod)
-        t[i] < 40 && continue 
+    for (i, t) ∈ enumerate(tvec)
+        t <= 40 && continue 
         Turing.@addlogprob! logpdf(Normal(recordedy2[i], sigma2), y2predod[i])
     end
 end
+
+recordedy2 = log.(1e-10 .+ unboostedsimulation.y2 ./ (1 .- unboostedsimulation.y2))
+
+
+model = fitmodel(unboostedsimulation, recordedy2)
+chain = sample(model, NUTS(0.65), 1_000)
+
+
+
+
 
 function fitmodel_target(data, recordedy2)
     return Pigeons.TuringLogPotential(fitmodel(data, recordedy2))
 end
 
-recordedy2 = log.(1e-10 .+ unboostedsimulation.I_t21 ./ (1 .- unboostedsimulation.I_t21))
+recordedy2 = log.(1e-10 .+ unboostedsimulation.y2 ./ (1 .- unboostedsimulation.y2))
+
+const FitmodelType_unboosted = typeof(fitmodel_target(unboostedsimulation, recordedy2))
+
+function Pigeons.initialization(target::FitmodelType_unboosted, rng::AbstractRNG, ::Int64)
+    result = DynamicPPL.VarInfo(
+        rng, target.model, DynamicPPL.SampleFromPrior(), DynamicPPL.PriorContext()
+    )
+    DynamicPPL.link!!(result, DynamicPPL.SampleFromPrior(), target.model)
+
+    #Pigeons.update_state!(result, :beta0, 1, 0.0)
+    #Pigeons.update_state!(result, :beta1, 1, 0.0)
+    #Pigeons.update_state!(result, :beta2, 1, 0.0)
+    #Pigeons.update_state!(result, :beta3 , 1, 0.0)
+
+    Pigeons.update_state!(result, :gamma0, 1, 0.0)
+    Pigeons.update_state!(result, :gamma1, 1, 0.0)
+    Pigeons.update_state!(result, :gamma2, 1, 0.0)
+    Pigeons.update_state!(result, :gamma3, 1, 0.0)
+    Pigeons.update_state!(result, :gamma4, 1, 0.0)
+    Pigeons.update_state!(result, :gamma5, 1, 0.0)
+    Pigeons.update_state!(result, :gamma6, 1, 0.0)
+    Pigeons.update_state!(result, :gamma7, 1, 0.0)
+    Pigeons.update_state!(result, :gamma8, 1, 0.0)
+    Pigeons.update_state!(result, :gamma9, 1, 0.0)
+    Pigeons.update_state!(result, :gamma10, 1, 0.0)
+
+    Pigeons.update_state!(result, :sigma2 , 1, 0.5)
+
+    return result
+end
 
 unboostedfitted_pt = pigeons( ;
     target=fitmodel_target(unboostedsimulation, recordedy2), 
