@@ -24,8 +24,11 @@ using CSV, DataFrames, Dates, Distributions, StaticArrays
 # Structs 
 ###########################################################################################
 
-function makechangematrix(compartments, pairs::Vector{Pair{Int64, Int64}})
-    mat = spzeros(Int, length(pairs), compartments)
+makechangematrix(compartments, pairs) = _makechangematrix(zeros, compartments, pairs)
+spmakechangematrix(compartments, pairs) = _makechangematrix(spzeros, compartments, pairs)
+
+function _makechangematrix(f, compartments, pairs::Vector{Pair{Int64, Int64}})
+    mat = f(Int, length(pairs), compartments)
     for (i, p) ∈ enumerate(pairs)
         mat[i, p.first] = -1
         mat[i, p.second] = 1
@@ -33,7 +36,48 @@ function makechangematrix(compartments, pairs::Vector{Pair{Int64, Int64}})
     return mat
 end
 
-HOSPITALSEIIRRRSCHANGEMATRIX = makechangematrix(
+HOSPITALSISCHANGEMATRIX = makechangematrix(
+    19,
+    [
+        # hospital patients: SIS with a "diagnosed" compartment and "diagnosed and recovered"
+        1 => 2,  # Sp -> Ip, patient infections
+        2 => 3,  # Ip -> Ip*, patient diagnosis
+        2 => 1,  # Ip -> Sp, patient recovery 
+        3 => 4,  # Ip* -> Sp*, patient diagnosed recovery (not susceptible to reinfection while still in hospital)
+        # healthcare workers: SIS with ten "isolated" (non-infectious) compartments  
+        5 => 6,  # Sh -> Ih, healthcare worker infections
+        6 => 10,  # Ih -> X1h*, healthcare worker diagnosis 1 
+        6 => 5,  # Ih -> Sh, healthcare worker recovery 
+        # isolated compartment transitions come later
+        # discharges
+        1 => 7,  # Sp -> Sc, susceptible discharges
+        2 => 8,  # Ip -> Ic, infectious discharges 
+        3 => 9,  # Ip* -> Ic*, diagnosed infectious discharges
+        4 => 7,  # Sp* -> Sc, recovered discharges
+        # community (will be approximately deterministic): SEIIRRRS with two "diagnosed" compartments
+        7 => 8,  # Sc -> Ic, community infections
+        8 => 9,  # Ic -> Ic*, community diagnosis
+        8 => 7,  # Ic -> Sc, community recovery 
+        9 => 7,  # Ic* -> Sc, community diagnosed recovery 
+        # admissions (will be calculated to replace discharges)
+        7 => 1,  # Sp -> Sc, susceptible admissions
+        8 => 2,  # Ic -> Ip, infectious admissions
+        9 => 5,  # Ic* -> Ip*, diagnosed infectious admissions
+        # progression of isolated healthcare workers (all occur at rate = 1)
+        10 => 11,  # X1h* -> X2h*
+        11 => 12,  # X2h* -> X3h*
+        12 => 13,  # X3h* -> X4h*
+        13 => 14,  # X4h* -> X5h*
+        14 => 15,  # X5h* -> X6h*
+        15 => 16,  # X6h* -> X7h*
+        16 => 17,  # X7h* -> X8h*
+        17 => 18,  # X8h* -> X9h*
+        18 => 19,  # X9h* -> X10h*
+        19 => 5,  # X10h* -> Sh
+    ]
+)
+
+HOSPITALSEIIRRRSCHANGEMATRIX = spmakechangematrix(
     34,
     [
         # hospital patients: SEIIR with two "diagnosed" compartments plus "diagnosed and recovered"
@@ -101,7 +145,7 @@ HOSPITALSEIIRRRSCHANGEMATRIX = makechangematrix(
     ]
 )
 
-
+#=
 function _changematrixsources(mat)
     ℓ = size(mat, 1)
     sources = Vector{Int}(undef, ℓ)
@@ -157,6 +201,8 @@ WXYYZSEIIRRRSCHANGEMATRIX = [
 ]
 
 WXYYZSEIIRRRSSOURCES = _changematrixsources(WXYYZSEIIRRRSCHANGEMATRIX)
+=#
+
 
 function wxyyzseiirrrs!(u, p)
     # forces of infection 
