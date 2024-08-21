@@ -1,7 +1,7 @@
 
 using DrWatson
 @quickactivate "ImmuneBoostingHealthcare"
-
+#=
 #using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
 using CSV, DataFrames, Random, Turing#, Pigeons
 using SparseArrays 
@@ -1964,7 +1964,7 @@ pointestimatedirecteffect(boostedsimulation)
 #bs2 = bootstrap(pointestimatedirecteffect, dc2, BasicSampling(1000))
 #bci2 = confint(bs2, BasicConfInt(0.95))
 
-
+=#
 ###########################################################################################
 # UK data
 ###########################################################################################
@@ -1973,6 +1973,82 @@ pointestimatedirecteffect(boostedsimulation)
 # Load UK data 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+hospitaldata = CSV.read(datadir("exp_raw", "SiteData.csv"), DataFrame)
+rename!(hospitaldata, Dict(Symbol("Trust Code") => "TrustCode"))
+rename!(hospitaldata, Dict(Symbol("Trust Type") => "TrustType"))
+rename!(hospitaldata, Dict(Symbol("Site Code") => "SiteCode"))
+rename!(hospitaldata, Dict(Symbol("Site Type") => "SiteType"))
+rename!(hospitaldata, Dict(Symbol("Site heated volume (m³)") => "HeatedVolumeString"))
+rename!(
+    hospitaldata, 
+    Dict(
+        Symbol("Single bedrooms for patients with en-suite facilities (No.)") => 
+            "SingleBedsString"
+    )
+)
+filter!(:SiteType => x -> x[1] == '1' || x[1] == '2', hospitaldata)
+insertcols!(
+    hospitaldata,
+    :HeatedVolume => [ 
+        parse(Int, replace(x, ',' => "")) 
+        for x ∈ hospitaldata.HeatedVolumeString
+    ], 
+    :SingleBedsEnsuite => [ 
+        x == "Not Applicable" ? 
+            missing :
+            parse(Int, replace(x, ',' => "")) 
+        for x ∈ hospitaldata.SingleBedsString
+    ]
+)
+
+hospitalbeds = CSV.read(datadir("exp_raw", "GeneralAcuteOccupiedBedsbyTrust.csv"), DataFrame)
+filter!(:TotalBedsAvailable => x -> !ismissing(x) && x != "" && x != " -   ", hospitalbeds)
+for i ∈ axes(hospitalbeds, 1)
+    hospitalbeds.OrgCode[i] = replace(hospitalbeds.OrgCode[i], ' ' => "")
+end
+insertcols!(
+    hospitalbeds,
+    :TotalBeds => [ 
+        parse(Int, replace(hospitalbeds.TotalBedsAvailable[i], ',' => "")) 
+        for i ∈ axes(hospitalbeds, 1)
+    ]
+)
+
+leftjoin!(hospitaldata, hospitalbeds; on= :TrustCode => :OrgCode )
+#=
+insertcols!(
+    hospitaldata,
+    :VolumePerBed => hospitaldata.HeatedVolume ./ hospitaldata.TotalBeds,
+    :ProportionSingleBeds => min.(hospitaldata.SingleBedsEnsuite ./ hospitaldata.TotalBeds, 1.0)
+)
+=#
+insertcols!(
+    hospitaldata,
+    :VolumePerBed => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
+    :ProportionSingleBeds => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
+)
+
+select!(hospitaldata, :TrustCode, :TrustType, :SiteCode, :SiteType, :TotalBeds, :HeatedVolume, :SingleBedsEnsuite, :VolumePerBed, :ProportionSingleBeds)
+
+for trust ∈ unique(hospitaldata.TrustCode)
+    totalsinglebeds = sum(hospitaldata.SingleBedsEnsuite .* (hospitaldata.TrustCode .== trust))
+    totalvolume = sum(hospitaldata.HeatedVolume .* (hospitaldata.TrustCode .== trust))
+    inds = findall(x -> x == trust, hospitaldata.TrustCode)
+    for i ∈ inds 
+        hospitaldata.VolumePerBed[i] = totalvolume / hospitaldata.TotalBeds[i]
+        hospitaldata.ProportionSingleBeds[i] = min(
+            totalsinglebeds / hospitaldata.TotalBeds[i],
+            one(totalsinglebeds / hospitaldata.TotalBeds[i])
+        )
+    end
+end
+
+select!(hospitaldata, :TrustCode, :VolumePerBed, :ProportionSingleBeds)
+unique!(hospitaldata)
+
+
+
+#=
 coviddata = CSV.read(datadir("exp_raw", "dataset.csv"), DataFrame)
 
 # make hospital codes categorical variables 
@@ -2004,13 +2080,13 @@ insertpreviousvalues!(
     coviddata, [ :PatientsProportion, :StaffProportion ], 43; 
     label=[ :Y, :I ]
 )
-
+#=
 # remove all data before 2021-01-09, when staff largely unvaccinated, and for the next 40 days
 Date("2021-01-08") + Day(40)
 #2021-02-17
 filter!(:Date => x -> x >= Date("2021-02-17"), coviddata)
 # and for the next 0
-
+=#
 # remove data where values are missing or NaN
 for name ∈ names(coviddata)
     name ∈ [ "Code", "StringCodes", "Date" ] && continue
@@ -2048,3 +2124,313 @@ lines!(ax, xs, ys; color=:red)
 fig
 
 scatter(coviddata.y2, coviddata.i4)
+
+
+=#
+
+
+###
+
+function simulationproportions!(data; I=:I, Y=:Y, M=:M, N=:N)
+    insertcols!(data, :PatientsProportion => getproperty(data, Y) ./ getproperty(data, M))
+    insertcols!(data, :StaffProportion => getproperty(data, I) ./ getproperty(data, N))
+    #absences = _simulateabsences(data)
+    #insertcols!(data, :AbsencesProportion => absences ./ data.N)
+end 
+
+
+
+coviddata = CSV.read(datadir("exp_raw", "dataset.csv"), DataFrame)
+
+# make hospital codes categorical variables 
+rename!(coviddata, :Codes => "StringCodes")
+insertcols!(coviddata, 1, :Code => CategoricalArray(coviddata.StringCodes))
+
+# calculate values for the analysis
+simulationproportions!(
+    coviddata; 
+    I=:StaffAbsences, N=:StaffTotal, Y=:CovidBeds, M=:AllBeds
+)
+
+# remove data where values are missing or NaN
+for name ∈ names(coviddata)
+    name ∈ [ "Code", "StringCodes", "Date" ] && continue
+    filter!(name => x -> !ismissing(x) && !isnan(x), coviddata)
+end
+
+# remove outlying values where proportions >= 1 
+for c ∈ [ :PatientsProportion, :StaffProportion ]
+    for i ∈ axes(coviddata, 1)
+        if ismissing(getproperty(coviddata, c)[i]) || getproperty(coviddata, c)[i] < 0
+            getproperty(coviddata, c)[i] = 0  # most of these are filtered out later 
+        elseif getproperty(coviddata, c)[i] > 1
+            getproperty(coviddata, c)[i] = 1
+        end
+    end
+    #filter!(c => x -> 0 <= x < 1, coviddata)
+end
+
+leftjoin!(coviddata, hospitaldata; on= :Code => :TrustCode )
+
+communitydata = CSV.read(datadir("exp_raw", "OxCGRT_compact_subnational_v1.csv"), DataFrame)
+
+#filter!(:CountryCode => x-> x == "GBR", communitydata)
+filter!(:RegionCode => x-> x == "UK_ENG", communitydata)
+insertcols!(
+    communitydata, 
+    :newcases => [ 
+        i == 1 ? 
+            0 : 
+            max(communitydata.ConfirmedCases[i] - communitydata.ConfirmedCases[i-1], 0) 
+        for i ∈ axes(communitydata, 1) 
+    ],
+    :FormattedDate => [ Date("$d", "yyyymmdd") for d ∈ communitydata.Date ]
+)
+insertcols!(communitydata, :weeklycases => [ i <= 7 ? 0 : maximum(@view communitydata.newcases[i-6:i]) for i ∈ axes(communitydata, 1) ])
+select!(communitydata, :FormattedDate, :weeklycases, :StringencyIndex_Average)
+
+leftjoin!(coviddata, communitydata; on= :Date => :FormattedDate )
+
+filter!(:VolumePerBed => x -> !ismissing(x), coviddata)
+
+# need to find the first and last date for each hospital
+maxstartdate, minenddate = let 
+    hospcodes = unique(coviddata.Code)
+    startdate = zeros(Date, length(hospcodes))
+    enddate = zeros(Date, length(hospcodes))
+    for (i, c) ∈ enumerate(hospcodes)
+        _tdf = filter(:Code => x -> x == c, coviddata)
+        startdate[i] = minimum(_tdf.Date)
+        enddate[i] = maximum(_tdf.Date)
+    end
+    ( maximum(startdate), maximum(enddate) )
+end
+# (Date("2020-04-04"), Date("2022-06-08"))
+
+filter!(:Date => x -> Date("2020-04-04") <= x <= Date("2022-06-08"), coviddata)
+insertcols!(coviddata, :t => Dates.value.(coviddata.Date - Date("2020-04-03")))
+
+# remove hospitals with very little data 
+removecodes = String7[ ]
+for (i, c) ∈ enumerate(unique(coviddata.Code))
+    if sum(coviddata.Code .== c) < 780 
+        push!(removecodes, String(c))
+    end
+#    _tdf = filter(:Code => x -> x == c, coviddata)
+ #   println(size(_tdf))
+ #   patients[:, i] .= _tdf.PatientsProportion
+  #  staff[:, i] .= _tdf.StaffProportion
+end
+
+filter!(:StringCodes => x -> x ∉ removecodes, coviddata)
+
+
+nhospitals = length(unique(coviddata.Code))
+ndates = length(unique(coviddata.Date))
+
+patients = zeros(ndates, nhospitals)
+staff = zeros(ndates, nhospitals) 
+newstaff = zeros(ndates, nhospitals) 
+for (i, c) ∈ enumerate(unique(coviddata.Code))
+    _tdf = filter(:Code => x -> x == c, coviddata)
+    for t ∈ 1:796
+        ind = findfirst(x -> x == t, _tdf.t) 
+        if !isnothing(ind)
+            patients[t, i] = _tdf.PatientsProportion[ind]
+            staff[t, i] = _tdf.StaffProportion[ind]
+            if t == 1 
+                newstaff[t, i] = staff[t, i] / 10
+            elseif t <= 10 
+                newstaff[t, i] =  max(
+                    0,
+                    min(
+                        1,
+                        staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i])
+                    )
+
+                )
+            else
+                newstaff[t, i] =  max(
+                    0,
+                    min(
+                        1,
+                        staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i])
+                    )
+
+                )
+            end
+        end
+#    println(size(_tdf))
+ #   patients[:, i] .= _tdf.PatientsProportion
+  #  staff[:, i] .= _tdf.StaffProportion
+    end
+end
+
+vpd, psb = let 
+    _tdf = select(coviddata, :Code, :VolumePerBed, :ProportionSingleBeds)
+    unique!(_tdf)
+    ( _tdf.VolumePerBed, _tdf.ProportionSingleBeds )
+end
+
+stringency = coviddata.StringencyIndex_Average[1:ndates]
+
+weeklycases = coviddata.weeklycases[1:ndates]
+
+vaccinated = zeros(ndates, nhospitals)
+for d ∈ axes(vaccinated, 1), h ∈ axes(vaccinated, 2)
+    if d ∈ [ 300, 450, 650, 800 ]
+        vaccinated[d, h] = 0.8
+    end
+end
+#=
+α1 = 0.02
+α2 = 0.05
+α3 = 0.02
+α4 = 0.6
+α5 = 0.02
+α6 = 0.005
+α7 = 0.02
+α8 = 0.005
+α9 = 2 
+α10 = 2.5
+α11 = 0.3 
+α12 = 500 
+α13 = 1
+α14 = 0.3 
+α15 = 500
+α16 = 0.5
+α17 = 0.5
+
+βp = @. α1 + α2 * vpd + α3 * psb
+βh = @. α4 + α5 * vpd + α6 * psb
+βc = @. α7 + α8 * (100 - stringency)
+
+foi = zeros(ndates, nhospitals)
+for d ∈ axes(foi, 1), h ∈ axes(foi, 2)
+    foi[d, h] = βp[h]* patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
+end
+
+wane_noboost = zeros(ndates, nhospitals)
+for d ∈ axes(wane_noboost, 1), h ∈ axes(wane_noboost, 2)
+    d == 1 && continue
+    wane_noboost[d, h] = sum([ (staff[x, h] + vaccinated[x, h]) * pdf(Weibull(α11, α12), d - x) for x ∈ 1:(d - 1) ])
+end
+
+delaystaff = zeros(ndates, nhospitals)
+immunestaff = zeros(ndates, nhospitals)
+wane_boost = zeros(ndates, nhospitals)
+for d ∈ axes(wane_boost, 1), h ∈ axes(wane_boost, 2)
+    delaystaff[d, h] = staff[d, h] + vaccinated[d, h]
+    immunestaff[d, h] = staff[d, h] + vaccinated[d, h]
+    d == 1 && continue
+
+    for d_2 ∈ 1:(d-1)
+        de = min(α13 * foi[d_2, h], 1) * immunestaff[d_2, h]
+        delaystaff[d, h] += de
+        immunestaff[d, h] += de 
+        immunestaff[d_2, h] += -de 
+    end
+    wane = 0 
+    for d_2 ∈ 1:(d-1)
+        newwane = immunestaff[d_2, h] * pdf(Weibull(α14, α15), d - d_2)
+        wane += newwane
+        immunestaff[d_2, h] += -newwane 
+    end
+    wane_boost[d, h] = wane 
+end
+    
+susceptible = ones(ndates, nhospitals)
+for d ∈ axes(susceptible, 1), h ∈ axes(susceptible, 2)
+    d == 1 && continue
+    susceptible[d, h] = max(
+        0,
+        min(
+            1,
+            susceptible[(d - 1), h] - staff[(d - 1), h] + α16 * wane_noboost[(d - 1), h] + α17 * wane_boost[(d - 1), h]
+        )
+    )
+end
+
+pred = foi .* susceptible
+=#
+
+@model function fitmodel(newstaff, patients, staff, vaccinated, weeklycases, vpd, psb, stringency, ndates, nhospitals)
+    α1 ~ Beta(1, 1)
+    α2 ~ Exponential(1)
+    α3 ~ Exponential(1)
+    α4 ~ Beta(1, 1)
+    α5 ~ Exponential(1)
+    α6 ~ Exponential(1)
+    α7 ~ Beta(1, 1)
+    α8 ~ Exponential(1)
+
+    a1 ~ Exponential(0.3) 
+    θ1 ~ Exponential(500) 
+    ψ ~ Exponential(1)
+    a2 ~ Exponential(0.3)
+    θ2 ~ Exponential(500)
+    α ~ Beta(1, 1)
+    β ~ Beta(1, 1)
+
+    sigma2 ~ Exponential(1)
+
+    βp = [ α1 + α2 * v + α3 * p for(v, p) ∈ zip(vpd, psb) ]
+    βh = [ α4 + α5 * v + α6 * p for(v, p) ∈ zip(vpd, psb) ]
+    βc = @. α7 + α8 * (100 - stringency)
+
+    foi = zeros(ndates, nhospitals)
+    for d ∈ axes(foi, 1), h ∈ axes(foi, 2)
+        foi[d, h] = βp[h]* patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
+    end
+
+    wane_noboost = zeros(ndates, nhospitals)
+    for d ∈ axes(wane_noboost, 1), h ∈ axes(wane_noboost, 2)
+        d == 1 && continue
+        wane_noboost[d, h] = sum([ (staff[x, h] + vaccinated[x, h]) * pdf(Weibull(a1, θ1), d - x) for x ∈ 1:(d - 1) ])
+    end
+
+    delaystaff = zeros(ndates, nhospitals)
+    immunestaff = zeros(ndates, nhospitals)
+    wane_boost = zeros(ndates, nhospitals)
+    for d ∈ axes(wane_boost, 1), h ∈ axes(wane_boost, 2)
+        delaystaff[d, h] = staff[d, h] + vaccinated[d, h]
+        immunestaff[d, h] = staff[d, h] + vaccinated[d, h]
+        d == 1 && continue
+
+        for d_2 ∈ 1:(d-1)
+            de = min(ψ * foi[d_2, h], 1) * immunestaff[d_2, h]
+            delaystaff[d, h] += de
+            immunestaff[d, h] += de 
+            immunestaff[d_2, h] += -de 
+        end
+        wane = 0 
+        for d_2 ∈ 1:(d-1)
+            newwane = immunestaff[d_2, h] * pdf(Weibull(a2, θ2), d - d_2)
+            wane += newwane
+            immunestaff[d_2, h] += -newwane 
+        end
+        wane_boost[d, h] = wane 
+    end
+        
+    susceptible = ones(ndates, nhospitals)
+    for d ∈ axes(susceptible, 1), h ∈ axes(susceptible, 2)
+        d == 1 && continue
+        susceptible[d, h] = max(
+            0,
+            min(
+                1,
+                susceptible[(d - 1), h] - staff[(d - 1), h] + α * wane_noboost[(d - 1), h] + β * wane_boost[(d - 1), h]
+            )
+        )
+    end
+
+    pred = min.(foi .* susceptible, 1)
+
+    for d ∈ axes(pred, 1), h ∈ axes(pred, 2)
+        d <= 14 && continue 
+        Turing.@addlogprob! logpdf(Normal(newstaff[d, h], sigma2), pred[d, h])
+    end
+end
+
+model = fitmodel(newstaff, patients, staff, vaccinated, weeklycases, vpd, psb, stringency, ndates, nhospitals)
+chain = sample(model, NUTS(0.65), 3)
