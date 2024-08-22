@@ -59,7 +59,11 @@ insertcols!(
     :ProportionSingleBeds => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
 )
 
-select!(hospitaldata, :TrustCode, :TrustType, :SiteCode, :SiteType, :TotalBeds, :HeatedVolume, :SingleBedsEnsuite, :VolumePerBed, :ProportionSingleBeds)
+select!(
+    hospitaldata, 
+    :TrustCode, :TrustType, :SiteCode, :SiteType, 
+    :TotalBeds, :HeatedVolume, :SingleBedsEnsuite, :VolumePerBed, :ProportionSingleBeds
+)
 
 for trust ∈ unique(hospitaldata.TrustCode)
     totalsinglebeds = sum(hospitaldata.SingleBedsEnsuite .* (hospitaldata.TrustCode .== trust))
@@ -104,14 +108,12 @@ for c ∈ [ :PatientsProportion, :StaffProportion ]
             getproperty(coviddata, c)[i] = 1
         end
     end
-    #filter!(c => x -> 0 <= x < 1, coviddata)
 end
 
 leftjoin!(coviddata, hospitaldata; on= :Code => :TrustCode )
 
 communitydata = CSV.read(datadir("exp_raw", "OxCGRT_compact_subnational_v1.csv"), DataFrame)
 
-#filter!(:CountryCode => x-> x == "GBR", communitydata)
 filter!(:RegionCode => x-> x == "UK_ENG", communitydata)
 insertcols!(
     communitydata, 
@@ -123,7 +125,12 @@ insertcols!(
     ],
     :FormattedDate => [ Date("$d", "yyyymmdd") for d ∈ communitydata.Date ]
 )
-insertcols!(communitydata, :weeklycases => [ i <= 7 ? 0 : maximum(@view communitydata.newcases[i-6:i]) for i ∈ axes(communitydata, 1) ])
+insertcols!(communitydata, :weeklycases => [ 
+    i <= 7 ? 
+        0 :
+        maximum(@view communitydata.newcases[i-6:i]) 
+    for i ∈ axes(communitydata, 1) 
+])
 select!(communitydata, :FormattedDate, :weeklycases, :StringencyIndex_Average)
 
 leftjoin!(coviddata, communitydata; on= :Date => :FormattedDate )
@@ -153,10 +160,6 @@ for (i, c) ∈ enumerate(unique(coviddata.Code))
     if sum(coviddata.Code .== c) < 780 
         push!(removecodes, String(c))
     end
-#    _tdf = filter(:Code => x -> x == c, coviddata)
- #   println(size(_tdf))
- #   patients[:, i] .= _tdf.PatientsProportion
-  #  staff[:, i] .= _tdf.StaffProportion
 end
 
 filter!(:StringCodes => x -> x ∉ removecodes, coviddata)
