@@ -5,7 +5,7 @@ using Turing, Pigeons
 
 if length(ARGS) == 2 
     id = parse(Int, ARGS[1])
-    n_rounds = min(10, parse(Int, ARGS[2]))
+    n_rounds = parse(Int, ARGS[2])
 else
     id = 1 
     n_rounds = 10
@@ -39,7 +39,7 @@ model = fitmodel(
 fitted_pt = pigeons( ;
     target=TuringLogPotential(model),
     n_rounds=0,
-    n_chains=8,
+    n_chains=10,
     multithreaded=true,
     record=[ traces; record_default() ],
     seed=(n_rounds * 10 + id),
