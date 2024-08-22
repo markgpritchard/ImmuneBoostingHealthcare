@@ -1,6 +1,9 @@
 
 using DrWatson
 @quickactivate "ImmuneBoostingHealthcare"
+
+using  CategoricalArrays, CSV, DataFrames, Dates, Random, Turing, Pigeons
+
 #=
 #using Bootstrap, CairoMakie, CSV, DataFrames, Random, Turing, Pigeons
 using CSV, DataFrames, Random, Turing#, Pigeons
@@ -2282,77 +2285,55 @@ for d ∈ axes(vaccinated, 1), h ∈ axes(vaccinated, 2)
         vaccinated[d, h] = 0.8
     end
 end
-#=
-α1 = 0.02
-α2 = 0.05
-α3 = 0.02
-α4 = 0.6
-α5 = 0.02
-α6 = 0.005
-α7 = 0.02
-α8 = 0.005
-α9 = 2 
-α10 = 2.5
-α11 = 0.3 
-α12 = 500 
-α13 = 1
-α14 = 0.3 
-α15 = 500
-α16 = 0.5
-α17 = 0.5
 
-βp = @. α1 + α2 * vpd + α3 * psb
-βh = @. α4 + α5 * vpd + α6 * psb
+
+
+
+T = Float64
+
+α1 = 0.4192
+α2 = 0.4045
+α3 = 3.4829
+α4 = 0.1926
+α5 = 1.1942
+α6 = 4.2933
+α7 = 0.6464
+α8 = 1.5305
+
+a = 0.1399
+θ = 0.1813
+ψ = 1.4301
+
+
+rjt = zeros(T, ndates)  # levels of immunity
+
+
+βp = [ α1 + α2 * v + α3 * p for(v, p) ∈ zip(vpd, psb) ]
+βh = [ α4 + α5 * v + α6 * p for(v, p) ∈ zip(vpd, psb) ]
 βc = @. α7 + α8 * (100 - stringency)
 
-foi = zeros(ndates, nhospitals)
+foi = zeros(T, ndates, nhospitals)
 for d ∈ axes(foi, 1), h ∈ axes(foi, 2)
-    foi[d, h] = βp[h]* patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
+    foi[d, h] = βp[h] * patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
 end
 
-wane_noboost = zeros(ndates, nhospitals)
-for d ∈ axes(wane_noboost, 1), h ∈ axes(wane_noboost, 2)
-    d == 1 && continue
-    wane_noboost[d, h] = sum([ (staff[x, h] + vaccinated[x, h]) * pdf(Weibull(α11, α12), d - x) for x ∈ 1:(d - 1) ])
-end
-
-delaystaff = zeros(ndates, nhospitals)
-immunestaff = zeros(ndates, nhospitals)
-wane_boost = zeros(ndates, nhospitals)
-for d ∈ axes(wane_boost, 1), h ∈ axes(wane_boost, 2)
-    delaystaff[d, h] = staff[d, h] + vaccinated[d, h]
-    immunestaff[d, h] = staff[d, h] + vaccinated[d, h]
-    d == 1 && continue
-
-    for d_2 ∈ 1:(d-1)
-        de = min(α13 * foi[d_2, h], 1) * immunestaff[d_2, h]
-        delaystaff[d, h] += de
-        immunestaff[d, h] += de 
-        immunestaff[d_2, h] += -de 
+predictedinfections = zeros(T, ndates, nhospitals)
+for h ∈ 1:nhospitals
+    for d ∈ 1:ndates  # reset the vector rjt 
+        rjt[d] = zero(T)
     end
-    wane = 0 
-    for d_2 ∈ 1:(d-1)
-        newwane = immunestaff[d_2, h] * pdf(Weibull(α14, α15), d - d_2)
-        wane += newwane
-        immunestaff[d_2, h] += -newwane 
+    for d ∈ 2:ndates  # reset the vector rjt 
+        rjt1 = predictedinfections[(d - 1), h] + (1 - exp(-ψ * foi[(d - 1), h])) * sum(rjt)
+        for x ∈ d:-1:2
+            rjt[x] = rjt[x-1] * exp(-ψ * foi[(d - 1), h]) * (1 - pdf(Weibull(a, θ), x) / (ccdf(Weibull(a, θ), x - 1)))
+        end
+        rjt[1] = rjt1 
+        predictedinfections[d, h] = (1 - sum(rjt)) * (1 - exp(-foi[(d - 1), h]))
     end
-    wane_boost[d, h] = wane 
-end
-    
-susceptible = ones(ndates, nhospitals)
-for d ∈ axes(susceptible, 1), h ∈ axes(susceptible, 2)
-    d == 1 && continue
-    susceptible[d, h] = max(
-        0,
-        min(
-            1,
-            susceptible[(d - 1), h] - staff[(d - 1), h] + α16 * wane_noboost[(d - 1), h] + α17 * wane_boost[(d - 1), h]
-        )
-    )
 end
 
-pred = foi .* susceptible
-=#
+
+
 
 @model function fitmodel(newstaff, patients, staff, vaccinated, weeklycases, vpd, psb, stringency, ndates, nhospitals)
     α1 ~ Beta(1, 1)
@@ -2364,73 +2345,76 @@ pred = foi .* susceptible
     α7 ~ Beta(1, 1)
     α8 ~ Exponential(1)
 
-    a1 ~ Exponential(0.3) 
-    θ1 ~ Exponential(500) 
+    a ~ Exponential(0.3) 
+    θ ~ Exponential(500) 
     ψ ~ Exponential(1)
-    a2 ~ Exponential(0.3)
-    θ2 ~ Exponential(500)
-    α ~ Beta(1, 1)
-    β ~ Beta(1, 1)
 
     sigma2 ~ Exponential(1)
+
+    T = typeof(α1)
+
+    rjt = zeros(T, ndates)  # levels of immunity
 
     βp = [ α1 + α2 * v + α3 * p for(v, p) ∈ zip(vpd, psb) ]
     βh = [ α4 + α5 * v + α6 * p for(v, p) ∈ zip(vpd, psb) ]
     βc = @. α7 + α8 * (100 - stringency)
 
-    foi = zeros(ndates, nhospitals)
+    foi = zeros(T, ndates, nhospitals)
     for d ∈ axes(foi, 1), h ∈ axes(foi, 2)
-        foi[d, h] = βp[h]* patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
+        foi[d, h] = βp[h] * patients[d, h] + βh[h]* staff[d, h] + βc[d] * weeklycases[d] / 56_000_000
     end
 
-    wane_noboost = zeros(ndates, nhospitals)
-    for d ∈ axes(wane_noboost, 1), h ∈ axes(wane_noboost, 2)
-        d == 1 && continue
-        wane_noboost[d, h] = sum([ (staff[x, h] + vaccinated[x, h]) * pdf(Weibull(a1, θ1), d - x) for x ∈ 1:(d - 1) ])
-    end
-
-    delaystaff = zeros(ndates, nhospitals)
-    immunestaff = zeros(ndates, nhospitals)
-    wane_boost = zeros(ndates, nhospitals)
-    for d ∈ axes(wane_boost, 1), h ∈ axes(wane_boost, 2)
-        delaystaff[d, h] = staff[d, h] + vaccinated[d, h]
-        immunestaff[d, h] = staff[d, h] + vaccinated[d, h]
-        d == 1 && continue
-
-        for d_2 ∈ 1:(d-1)
-            de = min(ψ * foi[d_2, h], 1) * immunestaff[d_2, h]
-            delaystaff[d, h] += de
-            immunestaff[d, h] += de 
-            immunestaff[d_2, h] += -de 
+    predictedinfections = zeros(T, ndates, nhospitals)
+    for h ∈ 1:nhospitals
+        for d ∈ 1:ndates  # reset the vector rjt 
+            rjt[d] = zero(T)
         end
-        wane = 0 
-        for d_2 ∈ 1:(d-1)
-            newwane = immunestaff[d_2, h] * pdf(Weibull(a2, θ2), d - d_2)
-            wane += newwane
-            immunestaff[d_2, h] += -newwane 
+        for d ∈ 2:ndates  # reset the vector rjt 
+            rjt1 = predictedinfections[(d - 1), h] + (1 - exp(-ψ * foi[(d - 1), h])) * sum(rjt)
+            for x ∈ d:-1:2
+                rjt[x] = rjt[x-1] * exp(-ψ * foi[(d - 1), h]) * (1 - pdf(Weibull(a, θ), x) / (ccdf(Weibull(a, θ), x - 1)))
+            end
+            rjt[1] = rjt1 
+            predictedinfections[d, h] = (1 - sum(rjt)) * (1 - exp(-foi[(d - 1), h]))
         end
-        wane_boost[d, h] = wane 
-    end
-        
-    susceptible = ones(ndates, nhospitals)
-    for d ∈ axes(susceptible, 1), h ∈ axes(susceptible, 2)
-        d == 1 && continue
-        susceptible[d, h] = max(
-            0,
-            min(
-                1,
-                susceptible[(d - 1), h] - staff[(d - 1), h] + α * wane_noboost[(d - 1), h] + β * wane_boost[(d - 1), h]
-            )
-        )
     end
 
-    pred = min.(foi .* susceptible, 1)
-
-    for d ∈ axes(pred, 1), h ∈ axes(pred, 2)
+    for d ∈ axes(predictedinfections, 1), h ∈ axes(predictedinfections, 2)
         d <= 14 && continue 
-        Turing.@addlogprob! logpdf(Normal(newstaff[d, h], sigma2), pred[d, h])
+        Turing.@addlogprob! logpdf(Normal(newstaff[d, h], sigma2), predictedinfections[d, h])
     end
 end
 
 model = fitmodel(newstaff, patients, staff, vaccinated, weeklycases, vpd, psb, stringency, ndates, nhospitals)
-chain = sample(model, NUTS(0.65), 3)
+#chain = sample(model, NUTS(0.65), 8)
+
+fitted_pt = pigeons( ;
+    target=TuringLogPotential(model),
+    n_rounds=0,
+    n_chains=8,
+    multithreaded=true,
+    record=[ traces; record_default() ],
+    seed=1,
+    variational=GaussianReference(),
+)
+fitted_chains = Chains(fitted_pt)
+output = Dict(
+    "chain" => fitted_chains, 
+    "pt" => fitted_pt, 
+    "n_rounds" => 0, 
+    "n_chains" => 8,
+)
+safesave("fittedvalues$(1).jld2", output)
+for i ∈ 1:10 
+    fitted_pt = increment_n_rounds!(fitted_pt, 1)
+    new_pt = pigeons(fitted_pt)
+    new_chains = Chains(new_pt)
+    fitted_pt = deepcopy(new_pt)
+    output = Dict(
+        "chain" => fitted_chains, 
+        "pt" => fitted_pt, 
+        "n_rounds" => i, 
+        "n_chains" => 8,
+    )
+    safesave("fittedvalues$(i).jld2", output)
+end
