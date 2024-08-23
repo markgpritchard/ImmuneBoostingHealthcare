@@ -118,7 +118,7 @@ simulations = let
         insertcols!(
             sim,
             :CommunityCases => [ COMMUNITYCASES[sim.t[i] >= 800 ? 80 : round(Int, sim.t[i] / 10, RoundDown)+1] for i ∈ axes(sim, 1) ],
-            :HeatedVolumePerBed => [ vpds[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
+            :VolumePerBed => [ vpds[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
             :ProportionSingleBeds => [ psbs[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
             :DiagnosedY => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.Y ],
             :DiagnosedI => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.I ],

@@ -3,19 +3,31 @@ include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoos
 
 using Turing, Pigeons
 
-if length(ARGS) == 2 
+if isfile(datadir("sims", "simulations.jld2"))
+    simulations = load(datadir("sims", "simulations.jld2"))
+else 
+    include("generatesimulations.jl")
+end
+
+if length(ARGS) == 3
     id = parse(Int, ARGS[1])
     n_rounds = parse(Int, ARGS[2])
+    sim = ARGS[3]
 else
     id = 1 
     n_rounds = 10
+    sim = "unboostedsimulation"
 end
 
-nhospitals = counthospitals(coviddata)
-ndates = countdates(coviddata)
+## no boosting 
 
-@unpack newstaff, patients, staff = datamatrices(coviddata, ndates, nhospitals)
-@unpack vpd, psb = hospitalconditionmatrices(coviddata)
+simulation = simulations[sim]
+
+nhospitals = counthospitals(simulation)
+ndates = countdates(simulation; dateid=:t)
+
+@unpack newstaff, patients, staff = datamatrices(simulation, ndates, nhospitals)
+@unpack vpd, psb = hospitalconditionmatrices(simulation)
 
 stringency = coviddata.StringencyIndex_Average[1:ndates]
 weeklycases = coviddata.weeklycases[1:ndates]
@@ -24,8 +36,8 @@ weeklycases = coviddata.weeklycases[1:ndates]
 vaccinated = let
     vaccinated = zeros(ndates, nhospitals)
     for d ∈ axes(vaccinated, 1), h ∈ axes(vaccinated, 2)
-        if d ∈ [ 300, 450, 650, 800 ]
-            vaccinated[d, h] = 0.8
+        if d == 300
+            vaccinated[d, h] = 0.9
         end
     end
     vaccinated
@@ -42,7 +54,7 @@ fitted_pt = pigeons( ;
     n_chains=10,
     multithreaded=true,
     record=[ traces; record_default() ],
-    seed=(n_rounds * 10 + id),
+    seed=(1000 + n_rounds * 10 + id),
     variational=GaussianReference(),
 )
 #fitted_chains = Chains(fitted_pt)
@@ -58,5 +70,5 @@ for i ∈ 1:n_rounds
         "n_rounds" => i, 
         "n_chains" => 8,
     )
-    safesave(datadir("sims", "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"), output)
+    safesave(datadir("sims", "fittedvalues_$(sim)_id_$(id)_round_$(i).jld2"), output)
 end

@@ -1,6 +1,6 @@
 
 counthospitals(data) = length(unique(data.Code))
-countdates(data) = length(unique(data.Date)) 
+countdates(data; dateid=:Date) = length(unique(getproperty(data, dateid))) 
 
 function datamatrices(data, ndates, nhospitals)
     patients = zeros(ndates, nhospitals)
