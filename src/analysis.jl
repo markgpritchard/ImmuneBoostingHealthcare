@@ -93,7 +93,9 @@ end
             rjt[d] = zero(T)
         end
         for d ∈ 2:ndates  # reset the vector rjt 
-            rjt1 = predictedinfections[(d - 1), h] + (1 - exp(-ψ * foi[(d - 1), h])) * sum(rjt)
+            rjt1 = predictedinfections[(d - 1), h] + 
+                vaccinated[(d - 1), h] + 
+                (1 - exp(-ψ * foi[(d - 1), h])) * sum(rjt)
             for x ∈ d:-1:2
                 rjt[x] = rjt[x-1] * 
                     exp(-ψ * foi[(d - 1), h]) * 
