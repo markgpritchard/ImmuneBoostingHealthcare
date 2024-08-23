@@ -60,10 +60,10 @@ fitted_pt = pigeons( ;
 #fitted_chains = Chains(fitted_pt)
 
 for i ∈ 1:n_rounds 
-    fitted_pt = increment_n_rounds!(fitted_pt, 1)
+    global fitted_pt = increment_n_rounds!(fitted_pt, 1)
     new_pt = pigeons(fitted_pt)
     new_chains = Chains(new_pt)
-    fitted_pt = deepcopy(new_pt)
+    global fitted_pt = deepcopy(new_pt)
     output = Dict(
         "chain" => fitted_chains, 
         "pt" => fitted_pt, 
