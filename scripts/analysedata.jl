@@ -18,21 +18,21 @@ ndates = countdates(coviddata)
 @unpack vpd, psb = hospitalconditionmatrices(coviddata)
 
 stringency = coviddata.StringencyIndex_Average[1:ndates]
-weeklycases = coviddata.weeklycases[1:ndates]
+community = coviddata.weeklycases[1:ndates] ./ 56_000_000
 
 # numbers vaccinated currently simulated 
 vaccinated = let
     vaccinated = zeros(ndates, nhospitals)
-    for d ∈ axes(vaccinated, 1), h ∈ axes(vaccinated, 2)
-        if d ∈ [ 300, 450, 650, 800 ]
-            vaccinated[d, h] = 0.8
+    for t ∈ axes(vaccinated, 1), j ∈ axes(vaccinated, 2)
+        if t ∈ [ 300, 450, 650, 800 ]
+            vaccinated[t, j] = 0.8
         end
     end
     vaccinated
 end
 
 model = fitmodel(
-    newstaff, patients, staff, vaccinated, weeklycases, 
+    newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals
 )
 
@@ -42,21 +42,29 @@ fitted_pt = pigeons( ;
     n_chains=10,
     multithreaded=true,
     record=[ traces; record_default() ],
-    seed=(n_rounds * 10 + id),
+    seed=(id),
     variational=GaussianReference(),
 )
-#fitted_chains = Chains(fitted_pt)
 
-for i ∈ 1:n_rounds 
-    global fitted_pt = increment_n_rounds!(fitted_pt, 1)
-    new_pt = pigeons(fitted_pt)
-    new_chains = Chains(new_pt)
-    global fitted_pt = deepcopy(new_pt)
-    output = Dict(
-        "chain" => fitted_chains, 
-        "pt" => fitted_pt, 
-        "n_rounds" => i, 
-        "n_chains" => 8,
-    )
-    safesave(datadir("sims", "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"), output)
+new_pt = fitted_pt
+
+for i ∈ 1:2#n_rounds
+    filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
+    nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
+    isfile(datadir("sims", nextfilename)) && continue
+    if isfile(datadir("sims", filename))
+        global new_pt = load(datadir("sims", filename))["pt"]
+    else
+        pt = increment_n_rounds!(new_pt, 1)
+        global new_pt = pigeons(pt)
+        new_chains = Chains(new_pt)
+        resultdict = Dict(
+            "chain" => new_chains, 
+            "pt" => new_pt, 
+            "n_rounds" => i, 
+            "n_chains" => 10,
+        )
+        safesave(datadir("sims", filename), resultdict)
+    end
 end
+

@@ -30,7 +30,7 @@ ndates = countdates(simulation; dateid=:t)
 @unpack vpd, psb = hospitalconditionmatrices(simulation)
 
 stringency = coviddata.StringencyIndex_Average[1:ndates]
-weeklycases = coviddata.weeklycases[1:ndates]
+community = simulation.CommunityCases[1:ndates] ./ 56_000_000
 
 # numbers vaccinated currently simulated 
 vaccinated = let
@@ -44,7 +44,7 @@ vaccinated = let
 end
 
 model = fitmodel(
-    newstaff, patients, staff, vaccinated, weeklycases, 
+    newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals
 )
 
@@ -54,21 +54,28 @@ fitted_pt = pigeons( ;
     n_chains=10,
     multithreaded=true,
     record=[ traces; record_default() ],
-    seed=(1000 + n_rounds * 10 + id),
+    seed=(1000 + id),
     variational=GaussianReference(),
 )
-#fitted_chains = Chains(fitted_pt)
 
-for i ∈ 1:n_rounds 
-    global fitted_pt = increment_n_rounds!(fitted_pt, 1)
-    new_pt = pigeons(fitted_pt)
-    new_chains = Chains(new_pt)
-    global fitted_pt = deepcopy(new_pt)
-    output = Dict(
-        "chain" => fitted_chains, 
-        "pt" => fitted_pt, 
-        "n_rounds" => i, 
-        "n_chains" => 8,
-    )
-    safesave(datadir("sims", "fittedvalues_$(sim)_id_$(id)_round_$(i).jld2"), output)
+new_pt = fitted_pt
+
+for i ∈ 1:2#n_rounds
+    filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
+    nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
+    isfile(datadir("sims", nextfilename)) && continue
+    if isfile(datadir("sims", filename))
+        global new_pt = load(datadir("sims", filename))["pt"]
+    else
+        pt = increment_n_rounds!(new_pt, 1)
+        global new_pt = pigeons(pt)
+        new_chains = Chains(new_pt)
+        resultdict = Dict(
+            "chain" => new_chains, 
+            "pt" => new_pt, 
+            "n_rounds" => i, 
+            "n_chains" => 10,
+        )
+        safesave(datadir("sims", filename), resultdict)
+    end
 end
