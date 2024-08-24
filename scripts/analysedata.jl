@@ -48,7 +48,7 @@ fitted_pt = pigeons( ;
 
 new_pt = fitted_pt
 
-for i ∈ 1:2#n_rounds
+for i ∈ 1:n_rounds
     filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
     nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
     isfile(datadir("sims", nextfilename)) && continue
