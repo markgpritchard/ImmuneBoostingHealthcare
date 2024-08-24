@@ -56,9 +56,9 @@ function _predictinfections!(
             pb = (1 - exp(-ψ * foi[(t - 1), j])) * (1 - v) + v  
             for x ∈ 1:N-1
                 immune10 += pb * immunevector[x]
-                immunevector[x] += -(pb + ω) * immunevector[x] + ω * (1 - pb) * immunevector[x+1]
+                immunevector[x] += -(pb + N * ω) * immunevector[x] + N * ω * (1 - pb) * immunevector[x+1]
             end
-            immunevector[N] += -(pb + ω) * immunevector[N] + immune10
+            immunevector[N] += -(N * ω * (1 - pb)) * immunevector[N] + immune10
             predictedinfections[t, j] = (1 - sum(immunevector)) * (1 - exp(-foi[(t - 1), j]))
         end
     end
@@ -68,13 +68,13 @@ end
     newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
     alpha1prior=Beta(1, 1),
-    alpha2prior=Exponential(1),
-    alpha3prior=Exponential(1),
+    alpha2prior=Exponential(0.1),
+    alpha3prior=Exponential(0.1),
     alpha4prior=Beta(1, 1),
-    alpha5prior=Exponential(1),
-    alpha6prior=Exponential(1),
+    alpha5prior=Exponential(0.1),
+    alpha6prior=Exponential(0.1),
     alpha7prior=Beta(1, 1),
-    alpha8prior=Exponential(1),
+    alpha8prior=Exponential(0.1),
     omegaprior=Uniform(0, 0.1),
     psiprior=Exponential(1),
     sigma2prior=Exponential(1),
