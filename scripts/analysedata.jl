@@ -8,7 +8,7 @@ if length(ARGS) == 2
     n_rounds = parse(Int, ARGS[2])
 else
     id = 1 
-    n_rounds = 10
+    n_rounds = 4
 end
 
 nhospitals = counthospitals(coviddata)
@@ -77,6 +77,53 @@ fitted_pt = pigeons( ;
 )
 
 new_pt = fitted_pt
+
+##########################################################################################
+#=
+using StaticArrays
+
+immunevectorlength = 10
+
+α1 = 0.1
+α2 = 0.1
+α3 = 0.1
+α4 = 0.1
+α5 = 0.1
+α6 = 0.1
+α7 = 0.1
+α8 = 0.1
+ω = 0.02
+ψ = 1.0
+sigma2 = 0.05
+
+T = typeof(α1)
+
+    # levels of immunity
+    immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
+
+    βp = [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βh = [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
+
+    foi = zeros(T, ndates, nhospitals)
+    for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
+        foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
+    end
+
+    predictedinfections = zeros(T, ndates, nhospitals)
+    ImmuneBoostingHealthcare._predictinfections!(
+        predictedinfections, immunevector, ndates, nhospitals, foi, vaccinated, ψ, ω
+    )
+
+    lp = 0
+    for t ∈ axes(predictedinfections, 1), j ∈ axes(predictedinfections, 2)
+        t <= 14 && continue 
+        println(logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j]))
+        lp += logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j])
+    end
+
+=#
+##########################################################################################
 
 for i ∈ 1:n_rounds
     filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"

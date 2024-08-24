@@ -67,14 +67,14 @@ end
 @model function fitmodel(
     newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
-    alpha1prior=Beta(1, 1),
-    alpha2prior=Exponential(0.1),
-    alpha3prior=Exponential(0.1),
-    alpha4prior=Beta(1, 1),
-    alpha5prior=Exponential(0.1),
-    alpha6prior=Exponential(0.1),
-    alpha7prior=Beta(1, 1),
-    alpha8prior=Exponential(0.1),
+    alpha1prior=Normal(0, 0.1),
+    alpha2prior=Normal(0, 0.1),
+    alpha3prior=Normal(0, 0.1),
+    alpha4prior=Normal(0, 0.1),
+    alpha5prior=Normal(0, 0.1),
+    alpha6prior=Normal(0, 0.1),
+    alpha7prior=Normal(0, 0.1),
+    alpha8prior=Normal(0, 0.1),
     omegaprior=Uniform(0, 0.1),
     psiprior=Exponential(1),
     sigma2prior=Exponential(1),
@@ -97,9 +97,9 @@ end
     # levels of immunity
     immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
 
-    βp = [ α1 + α2 * v + α3 * p for(v, p) ∈ zip(vpd, psb) ]
-    βh = [ α4 + α5 * v + α6 * p for(v, p) ∈ zip(vpd, psb) ]
-    βc = @. α7 + α8 * (100 - stringency)
+    βp = [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βh = [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
 
     foi = zeros(T, ndates, nhospitals)
     for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
@@ -113,6 +113,7 @@ end
 
     for t ∈ axes(predictedinfections, 1), j ∈ axes(predictedinfections, 2)
         t <= 14 && continue 
-        Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j])
+        #Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j])
+        predictedinfections[t, j] ~ Normal(newstaff[t, j], sigma2)
     end
 end

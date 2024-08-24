@@ -11,7 +11,7 @@ module load Julia/1.8.5-linux-x86_64
 
 n_rounds=8
 
-for n in {1..5}
+for n in {1..4}
 do
 	julia scripts/analysesims.jl "$n" "$n_rounds" "unboostedsimulation" &
 done
