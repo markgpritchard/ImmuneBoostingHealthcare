@@ -1,7 +1,7 @@
 
 include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoostingHealthcare
 
-using Turing, Pigeons
+using Turing, Pigeons, Random
 
 if isfile(datadir("sims", "simulations.jld2"))
     simulations = load(datadir("sims", "simulations.jld2"))
@@ -43,13 +43,44 @@ vaccinated = let
     vaccinated
 end
 
-model = fitmodel(
-    newstaff, patients, staff, vaccinated, community, 
-    vpd, psb, stringency, ndates, nhospitals
+function fitsimmodel_target(
+    newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
+    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals
 )
+    return Pigeons.TuringLogPotential(
+        fitmodel(
+            newstaff, patients, staff, vaccinated, community, 
+            vpd, psb, stringency, ndates, nhospitals
+        )
+    )
+    
+end
+
+const FitsimmodelType = typeof(fitsimmodel_target())
+
+function Pigeons.initialization(target::FitsimmodelType, rng::AbstractRNG, ::Int64)
+    result = DynamicPPL.VarInfo(
+        rng, target.model, DynamicPPL.SampleFromPrior(), DynamicPPL.PriorContext()
+    )
+    DynamicPPL.link!!(result, DynamicPPL.SampleFromPrior(), target.model)
+
+    Pigeons.update_state!(result, :α1, 1, 0.1)
+    Pigeons.update_state!(result, :α2, 1, 0.1)
+    Pigeons.update_state!(result, :α3, 1, 0.1)
+    Pigeons.update_state!(result, :α4, 1, 0.1)
+    Pigeons.update_state!(result, :α5, 1, 0.1)
+    Pigeons.update_state!(result, :α6, 1, 0.1)
+    Pigeons.update_state!(result, :α7, 1, 0.1)
+    Pigeons.update_state!(result, :α8, 1, 0.1)
+    Pigeons.update_state!(result, :ω, 1, 0.02)
+    Pigeons.update_state!(result, :ψ, 1, 1.0)
+    Pigeons.update_state!(result, :sigma2, 1, 0.05)
+
+    return result
+end
 
 fitted_pt = pigeons( ;
-    target=TuringLogPotential(model),
+    target=fitsimmodel_target(),
     n_rounds=0,
     n_chains=10,
     multithreaded=true,
