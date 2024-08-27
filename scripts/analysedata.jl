@@ -52,13 +52,13 @@ function Pigeons.initialization(target::FitdatamodelType, rng::AbstractRNG, ::In
     DynamicPPL.link!!(result, DynamicPPL.SampleFromPrior(), target.model)
 
     Pigeons.update_state!(result, :α1, 1, 0.1)
-    Pigeons.update_state!(result, :α2, 1, 0.1)
-    Pigeons.update_state!(result, :α3, 1, 0.1)
+    Pigeons.update_state!(result, :α2, 1, 0.0)
+    Pigeons.update_state!(result, :α3, 1, 0.0)
     Pigeons.update_state!(result, :α4, 1, 0.1)
-    Pigeons.update_state!(result, :α5, 1, 0.1)
-    Pigeons.update_state!(result, :α6, 1, 0.1)
+    Pigeons.update_state!(result, :α5, 1, 0.0)
+    Pigeons.update_state!(result, :α6, 1, 0.0)
     Pigeons.update_state!(result, :α7, 1, 0.1)
-    Pigeons.update_state!(result, :α8, 1, 0.1)
+    Pigeons.update_state!(result, :α8, 1, 0.0)
     Pigeons.update_state!(result, :ω, 1, 0.02)
     Pigeons.update_state!(result, :ψ, 1, 1.0)
     Pigeons.update_state!(result, :sigma2, 1, 0.05)
@@ -123,6 +123,67 @@ T = typeof(α1)
     end
 
 =#
+#=
+
+βp = [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
+βh = [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
+βc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
+
+foi = zeros(T, ndates, nhospitals)
+for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
+    foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
+end
+=#
+#=
+
+
+T = typeof(0.2)
+
+function asdf!(T, foi, a1, a2, a3, a4, a5, a6, a7, a8, vpd, psb, stringency, ndates, nhospitals, patients, staff, community)
+    βp = [ max(zero(T), a1 + a2 * v + a3 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βh = [ max(zero(T), a4 + a5 * v + a6 * p) for (v, p) ∈ zip(vpd, psb) ]
+    βc = [ max(zero(T), a7 + a8 * (100 - s)) for s ∈ stringency ]
+    
+    for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
+        foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
+    end
+    return foi 
+end
+
+foi = zeros(T, ndates, nhospitals)
+
+
+@benchmark  asdf(0.2, 0.2, .2, .2, .2, .2, .2, .2, vpd, psb, stringency, ndates, nhospitals, patients, staff, community)
+=#
+#=
+function _predictinfections!(
+    predictedinfections::AbstractMatrix{T}, immunevector::SizedVector{N, T}, 
+    ndates, nhospitals, foi, vaccinated, ψ, ω
+) where {N, T}
+    for j ∈ 1:nhospitals
+        @assert predictedinfections[1, j] == 0
+        for x ∈ 1:N  # reset immunevector
+            immunevector[x] = zero(T)
+        end
+        for t ∈ 2:ndates  
+            v = vaccinated[(t - 1), j]
+            immune10 = predictedinfections[(t - 1), j] + 
+                v * (1 - sum(immunevector) - predictedinfections[(t - 1), j])
+            # probability of boosting from natural immune boosting plus vaccination
+            pb = (1 - exp(-ψ * foi[(t - 1), j])) * (1 - v) + v  
+            for x ∈ 1:N-1
+                immune10 += pb * immunevector[x]
+                immunevector[x] += -(pb + N * ω) * immunevector[x] + N * ω * (1 - pb) * immunevector[x+1]
+            end
+            immunevector[N] += -(N * ω * (1 - pb)) * immunevector[N] + immune10
+            predictedinfections[t, j] = (1 - sum(immunevector)) * (1 - exp(-foi[(t - 1), j]))
+        end
+    end
+end
+=#
+
+
+
 ##########################################################################################
 
 for i ∈ 1:n_rounds
