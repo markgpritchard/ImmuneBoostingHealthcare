@@ -152,7 +152,7 @@ end
 # (Date("2020-04-04"), Date("2022-06-08"))
 
 filter!(:Date => x -> Date("2020-04-04") <= x <= Date("2022-06-08"), coviddata)
-insertcols!(coviddata, :t => Dates.value.(coviddata.Date - Date("2020-04-03")))
+insertcols!(coviddata, :t => Dates.value.(coviddata.Date - Date("2020-03-19")))
 
 # remove hospitals with very little data 
 removecodes = String7[ ]
@@ -163,3 +163,58 @@ for (i, c) ∈ enumerate(unique(coviddata.Code))
 end
 
 filter!(:StringCodes => x -> x ∉ removecodes, coviddata)
+
+# generate final dataset 
+
+finaldata = DataFrame(
+    :Code => Any[ ],
+    :StringCodes => String7[ ],
+    :Date => Date[ ],
+    :CovidBeds => Int[ ],
+    :AllBeds => Int[ ],
+    :StaffAbsences => Int[ ],
+    :StaffTotal => Int[ ],
+    :CovidPatients => Float64[ ],
+    :CovidAbsences => Float64[ ],
+    :PatientsProportion => Float64[ ],
+    :StaffProportion => Float64[ ],
+    :VolumePerBed => Float64[ ],
+    :ProportionSingleBeds => Float64[ ],
+    :weeklycases => Int[ ],
+    :StringencyIndex_Average => Float64[ ],
+    :t => Float64[ ],
+)
+for c ∈ unique(coviddata.Code)
+    ldf = DataFrame(
+        :Code => c,
+        :StringCodes => String(c),
+        :Date => Date("2020-03-19"):Day(1):Date("2022-06-28")
+    )
+    leftjoin!(ldf, coviddata; on=[ :Code, :StringCodes, :Date ])
+    #println(c)
+    #println(describe(ldf))
+    maximum(describe(ldf).nmissing) == 832 && continue  # all missing
+    #println("using $c")
+    for i ∈ axes(ldf, 1)
+        for v ∈ [ 
+            :CovidBeds, :StaffAbsences, 
+            :CovidPatients, :CovidAbsences, 
+            :PatientsProportion, :StaffProportion, 
+            :weeklycases, :StringencyIndex_Average
+        ]
+            if ismissing(getproperty(ldf, v)[i])
+                getproperty(ldf, v)[i] = 0 
+            end
+        end
+        for v ∈ [ :AllBeds, :StaffTotal, :VolumePerBed, :ProportionSingleBeds ]
+            if ismissing(getproperty(ldf, v)[i])
+                getproperty(ldf, v)[i] = maximum(skipmissing(getproperty(ldf, v)))
+            end
+        end
+        if ismissing(ldf.t[i])
+            ldf.t[i] = Dates.value.(ldf.Date[i] - Date("2020-03-19"))
+        end
+    end
+    append!(finaldata, ldf)
+end
+finaldata.Code = CategoricalArray(finaldata.Code)

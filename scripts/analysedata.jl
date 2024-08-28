@@ -11,14 +11,14 @@ else
     n_rounds = 4
 end
 
-nhospitals = counthospitals(coviddata)
-ndates = countdates(coviddata)
+nhospitals = counthospitals(finaldata)
+ndates = countdates(finaldata)
 
-@unpack newstaff, patients, staff = datamatrices(coviddata, ndates, nhospitals)
-@unpack vpd, psb = hospitalconditionmatrices(coviddata)
+@unpack newstaff, patients, staff = datamatrices(finaldata, ndates, nhospitals)
+@unpack vpd, psb = hospitalconditionmatrices(finaldata)
 
-stringency = coviddata.StringencyIndex_Average[1:ndates]
-community = coviddata.weeklycases[1:ndates] ./ 56_000_000
+stringency = finaldata.StringencyIndex_Average[1:ndates]
+community = finaldata.weeklycases[1:ndates] ./ 56_000_000
 
 # numbers vaccinated currently simulated 
 vaccinated = let
@@ -78,114 +78,6 @@ fitted_pt = pigeons( ;
 
 new_pt = fitted_pt
 
-##########################################################################################
-#=
-using StaticArrays
-
-immunevectorlength = 10
-
-α1 = 0.1
-α2 = 0.1
-α3 = 0.1
-α4 = 0.1
-α5 = 0.1
-α6 = 0.1
-α7 = 0.1
-α8 = 0.1
-ω = 0.02
-ψ = 1.0
-sigma2 = 0.05
-
-T = typeof(α1)
-
-    # levels of immunity
-    immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
-
-    βp = [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
-    βh = [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
-    βc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
-
-    foi = zeros(T, ndates, nhospitals)
-    for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
-        foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
-    end
-
-    predictedinfections = zeros(T, ndates, nhospitals)
-    ImmuneBoostingHealthcare._predictinfections!(
-        predictedinfections, immunevector, ndates, nhospitals, foi, vaccinated, ψ, ω
-    )
-
-    lp = 0
-    for t ∈ axes(predictedinfections, 1), j ∈ axes(predictedinfections, 2)
-        t <= 14 && continue 
-        println(logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j]))
-        lp += logpdf(Normal(newstaff[t, j], sigma2), predictedinfections[t, j])
-    end
-
-=#
-#=
-
-βp = [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
-βh = [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
-βc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
-
-foi = zeros(T, ndates, nhospitals)
-for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
-    foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
-end
-=#
-#=
-
-
-T = typeof(0.2)
-
-function asdf!(T, foi, a1, a2, a3, a4, a5, a6, a7, a8, vpd, psb, stringency, ndates, nhospitals, patients, staff, community)
-    βp = [ max(zero(T), a1 + a2 * v + a3 * p) for (v, p) ∈ zip(vpd, psb) ]
-    βh = [ max(zero(T), a4 + a5 * v + a6 * p) for (v, p) ∈ zip(vpd, psb) ]
-    βc = [ max(zero(T), a7 + a8 * (100 - s)) for s ∈ stringency ]
-    
-    for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
-        foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
-    end
-    return foi 
-end
-
-foi = zeros(T, ndates, nhospitals)
-
-
-@benchmark  asdf(0.2, 0.2, .2, .2, .2, .2, .2, .2, vpd, psb, stringency, ndates, nhospitals, patients, staff, community)
-=#
-#=
-function _predictinfections!(
-    predictedinfections::AbstractMatrix{T}, immunevector::SizedVector{N, T}, 
-    ndates, nhospitals, foi, vaccinated, ψ, ω
-) where {N, T}
-    for j ∈ 1:nhospitals
-        @assert predictedinfections[1, j] == 0
-        for x ∈ 1:N  # reset immunevector
-            immunevector[x] = zero(T)
-        end
-        for t ∈ 2:ndates  
-            v = vaccinated[(t - 1), j]
-            immune10 = predictedinfections[(t - 1), j] + 
-                v * (1 - sum(immunevector) - predictedinfections[(t - 1), j])
-            # probability of boosting from natural immune boosting plus vaccination
-            pb = (1 - exp(-ψ * foi[(t - 1), j])) * (1 - v) + v  
-            for x ∈ 1:N-1
-                immune10 += pb * immunevector[x]
-                immunevector[x] += -(pb + N * ω) * immunevector[x] + N * ω * (1 - pb) * immunevector[x+1]
-            end
-            immunevector[N] += -(N * ω * (1 - pb)) * immunevector[N] + immune10
-            predictedinfections[t, j] = (1 - sum(immunevector)) * (1 - exp(-foi[(t - 1), j]))
-        end
-    end
-end
-=#
-
-
-
-##########################################################################################
-
 for i ∈ 1:n_rounds
     filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
     nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
@@ -205,4 +97,3 @@ for i ∈ 1:n_rounds
         safesave(datadir("sims", filename), resultdict)
     end
 end
-

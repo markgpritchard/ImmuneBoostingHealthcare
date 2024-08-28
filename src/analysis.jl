@@ -9,23 +9,20 @@ function datamatrices(data, ndates, nhospitals)
     for (i, c) ∈ enumerate(unique(data.Code))
         _tdf = filter(:Code => x -> x == c, data)
         for t ∈ 1:ndates
-            ind = findfirst(x -> x == t, _tdf.t) 
-            if !isnothing(ind)
-                patients[t, i] = _tdf.PatientsProportion[ind]
-                staff[t, i] = _tdf.StaffProportion[ind]
-                if t == 1 
-                    newstaff[t, i] = staff[t, i] / 10
-                elseif t <= 10 
-                    newstaff[t, i] = max(
-                        0,
-                        min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
-                    )
-                else
-                    newstaff[t, i] = max(
-                        0,
-                        min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
-                    )
-                end
+            patients[t, i] = _tdf.PatientsProportion[t]
+            staff[t, i] = _tdf.StaffProportion[t]
+            if t == 1 
+                newstaff[t, i] = staff[t, i] / 10
+            elseif t <= 10 
+                newstaff[t, i] = max(
+                    0,
+                    min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
+                )
+            else
+                newstaff[t, i] = max(
+                    0,
+                    min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
+                )
             end
         end
     end
