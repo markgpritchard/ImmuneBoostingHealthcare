@@ -2,7 +2,8 @@
 module ImmuneBoostingHealthcare
 
 using DrWatson
-using CategoricalArrays, DataFrames, DifferentialEquations, Distributions, StaticArrays, Turing
+using CategoricalArrays, DataFrames, DifferentialEquations, Distributions, StaticArrays
+using StatsBase, Turing
 import Base: minimum
 
 include("structs.jl")
@@ -17,7 +18,7 @@ export
     SEIIRRRSp, WXYYZSEIIRRRSp,
     modifyp,
     # consts.jl
-    COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR,
+    
     # simulations.jl
     seiirrrs!, wxyyzseiirrrs!, 
     makeu0!, seiirrrs_u0, simulatehospital, simulatehospitals, wxyyzseiirrrs_u0,
@@ -25,8 +26,9 @@ export
     insertproportions!,
     # analysis.jl
     calculatebetas, countdates, counthospitals, datamatrices, fitmodel, 
-    hospitalconditionmatrices, loadchainsdf, predictinfections, predictinfections!,
+    hospitalconditionmatrices, loadchainsdf, predictinfections, predictinfections!, 
+    summarizepredictedinfections
     # plotting.jld2
-    plotchains
+    
 
 end  # module ImmuneBoostingHealthcare

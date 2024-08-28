@@ -1,9 +1,11 @@
 
 include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoostingHealthcare
+include(srcdir("PlottingFunctions.jl"))
 
 #using Turing, Pigeons, Random
-using Pigeons
-using StatsBase
+#using CairoMakie, Pigeons, StatsBase
+using CairoMakie, Pigeons
+using .PlottingFunctions
 
 if isfile(datadir("sims", "simulations.jld2"))
     simulations = load(datadir("sims", "simulations.jld2"))
@@ -11,14 +13,14 @@ else
     include("generatesimulations.jl")
 end
 
-using CairoMakie 
-
-
 ## Unboosted sims 
 
 ## Boosted sims 
 
 ## Covid data 
+
+nhospitals = counthospitals(coviddata)
+ndates = countdates(coviddata)
 
 # numbers vaccinated currently simulated 
 vaccinated = let
@@ -31,9 +33,6 @@ vaccinated = let
     vaccinated
 end
 
-nhospitals = counthospitals(coviddata)
-ndates = countdates(coviddata)
-
 @unpack newstaff, patients, staff = datamatrices(coviddata, ndates, nhospitals)
 @unpack vpd, psb = hospitalconditionmatrices(coviddata)
 
@@ -45,31 +44,7 @@ plotchains(coviddf)
 
 @unpack βp, βh, βc = calculatebetas(coviddf, vpd, psb, stringency)
 
-function summarizepredictedinfections(predictedinfections::Array{<:Real, 3})
-    ndates, nhospitals, nsamples = size(predictedinfections)      
-    totals = zeros(nsamples, nhospitals)
-    means = zeros(nhospitals)
-    lcris = zeros(nhospitals)
-    ucris = zeros(nhospitals)
-
-    for i ∈ axes(totals, 2), j ∈ axes(totals, 1)
-        totals[j, i] = sum(@view predictedinfections[:, i, j])
-    end
-
-    for i ∈ 1:nhospitals
-        means[i] = mean(totals[:, i])
-        lcri, ucri = quantile(predictedtotalinfections[:, i], [ 0.05, 0.95 ])
-        lcris[i] = lcri
-        ucris[i] = ucri
-    end
-
-    return @ntuple totals means lcris ucris
-end
-
-function summarizepredictedinfections(args...; kwargs...)
-    predictedinfections = predictinfections(args...; kwargs...) 
-    return summarizepredictedinfections(predictedinfections)
-end
+totalinfections = [ sum(@view newstaff[:, i]) for i ∈ 1:nhospitals ]
 
 predictedinfections = summarizepredictedinfections(
     coviddf, patients, staff, community, vaccinated, vpd, psb, stringency
@@ -83,7 +58,7 @@ fig = Figure()
 ax1 = Axis(fig[1, 1])
 ax2 = Axis(fig[2, 1])
 scatter!(ax1, totalinfections, predictedinfections.means; color=:blue, markersize=3)
-#rangebars!(ax, totalinfections, lcripredictedtotalinfections, ucripredictedtotalinfections)
+rangebars!(ax1, totalinfections, predictedinfections.lcris, predictedinfections.ucris; color=( :blue, 0.1 ))
 lines!(ax1, [ extrema(totalinfections)... ], [ extrema(totalinfections)... ])
 
 scatter!(ax2, totalinfections, predictedinfectionswithoutboost.means; color=:blue, markersize=3)
@@ -92,3 +67,13 @@ lines!(ax2, [ extrema(totalinfections)... ], [ extrema(totalinfections)... ])
 
 
 fig
+
+
+
+exampleinfections = predictinfections(
+    coviddf, patients, staff, community, vaccinated, vpd, psb, stringency;
+    inds=10
+)[:, :, 1]
+
+
+exampleinfections .- newstaff[:, 10]

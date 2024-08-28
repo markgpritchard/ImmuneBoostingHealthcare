@@ -19,7 +19,6 @@ function datamatrices(data, ndates, nhospitals)
                     newstaff[t, i] = max(
                         0,
                         min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
-    
                     )
                 else
                     newstaff[t, i] = max(
@@ -41,7 +40,7 @@ end
 
 function predictinfections(
     βp::T, βh::T, βc::T, ψ::T, ω::T, patients, staff, community, vaccinated; 
-    immunevectorlength=10
+    immunevectorlength=10,
 ) where T 
     ndates = length(βc)
     nhospitals = length(βp)
@@ -60,30 +59,53 @@ end
 
 function predictinfections(
     df::DataFrame, patients, staff, community, vaccinated, vpd, psb, stringency; 
-    immunevectorlength=10, ψ=automatic
+    immunevectorlength=10, inds=automatic, ψ=automatic,
 )
     return _predictinfections(
-        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ; 
+        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, inds; 
         immunevectorlength
     )
 end
 
 function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, ::Automatic; 
+    df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, ::Automatic; 
+    immunevectorlength
+)
+    allinds = axes(df, 1)
+    return _predictinfections(
+        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, allinds; 
+        immunevectorlength
+    )
+end
+
+function _predictinfections(
+    df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, ind::Number; 
+    immunevectorlength
+)
+    allinds = [ ind ]
+    return _predictinfections(
+        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, allinds; 
+        immunevectorlength
+    )
+end
+
+function _predictinfections(
+    df, patients, staff, community, vaccinated, vpd, psb, stringency, 
+    ::Automatic, inds::AbstractVector; 
     immunevectorlength
 )
     ndates, nhospitals = size(patients)
-    nsamples = size(df, 1)
+    nsamples = length(inds)
     predictedinfections = zeros(ndates, nhospitals, nsamples)
     immunevector = SizedVector{immunevectorlength}(zeros(immunevectorlength))
 
     @unpack βp, βh, βc = calculatebetas(df, vpd, psb, stringency)
 
-    for i ∈ 1:nsamples 
+    for (i, ind) ∈ enumerate(inds)
         predictinfections!(
             @view(predictedinfections[:, :, i]), immunevector, 
             ndates, nhospitals, 
-            βp[i], βh[i], βc[i], getproperty(df, :ψ)[i], getproperty(df, :ω)[i], 
+            βp[ind], βh[ind], βc[ind], getproperty(df, :ψ)[ind], getproperty(df, :ω)[ind], 
             patients, staff, community, vaccinated
         )
     end
@@ -92,21 +114,22 @@ function _predictinfections(
 end
 
 function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ::Number; 
+    df, patients, staff, community, vaccinated, vpd, psb, stringency, 
+    ψ::Number, inds::AbstractVector; 
     immunevectorlength
 )
     ndates, nhospitals = size(patients)
-    nsamples = size(df, 1)
+    nsamples = length(inds)
     predictedinfections = zeros(ndates, nhospitals, nsamples)
     immunevector = SizedVector{immunevectorlength}(zeros(immunevectorlength))
 
     @unpack βp, βh, βc = calculatebetas(df, vpd, psb, stringency)
 
-    for i ∈ 1:nsamples 
+    for (i, ind) ∈ enumerate(inds)
         predictinfections!(
             @view(predictedinfections[:, :, i]), immunevector, 
             ndates, nhospitals, 
-            βp[i], βh[i], βc[i], ψ, getproperty(df, :ω)[i], 
+            βp[ind], βh[ind], βc[ind], ψ, getproperty(df, :ω)[ind], 
             patients, staff, community, vaccinated
         )
     end
@@ -218,9 +241,12 @@ end
             pb = (1 - exp(-ψ * foi[t])) * (1 - v) + v  
             for x ∈ 1:immunevectorlength-1
                 immune10 += pb * immunevector[x]
-                immunevector[x] += -(pb + immunevectorlength * ω) * immunevector[x] + immunevectorlength * ω * (1 - pb) * immunevector[x+1]
+                immunevector[x] += -(pb + immunevectorlength * ω) * immunevector[x] + 
+                    immunevectorlength * ω * (1 - pb) * immunevector[x+1]
             end
-            immunevector[immunevectorlength] += -(immunevectorlength * ω * (1 - pb)) * immunevector[immunevectorlength] + immune10
+            immunevector[immunevectorlength] += -(immunevectorlength * ω * (1 - pb)) * 
+                immunevector[immunevectorlength] + 
+                immune10
             predictedinfections = (1 - sum(immunevector)) * (1 - exp(-foi[t]))
             Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
         end
@@ -305,4 +331,44 @@ function calculatebetas(df, vpd, psb, stringency)
     βh = _calculatebetah(df, vpd, psb)
     βc = _calculatebetac(df, stringency)
     return @ntuple βp βh βc
+end
+
+function summarizepredictedinfections(
+    predictedinfections::Array{<:Real, 3}; 
+    cri=[ 0.05, 0.95 ],
+)
+    return _summarizepredictedinfections(predictedinfections, cri)
+end
+
+function summarizepredictedinfections(df::DataFrame, args...; cri=[ 0.05, 0.95 ], kwargs...)
+    predictedinfections = predictinfections(df, args...; kwargs...) 
+    return _summarizepredictedinfections(predictedinfections, cri)
+end
+
+function _summarizepredictedinfections(predictedinfections, cri::Number)
+    @assert cri <= 1 
+    lcri = (1 - cri) / 2
+    ucri = 1 - lcri 
+    return _summarizepredictedinfections(predictedinfections, [ lcr, ucri ])
+end
+
+function _summarizepredictedinfections(predictedinfections, cri)
+    ndates, nhospitals, nsamples = size(predictedinfections)      
+    totals = zeros(nsamples, nhospitals)
+    means = zeros(nhospitals)
+    lcris = zeros(nhospitals)
+    ucris = zeros(nhospitals)
+
+    for i ∈ axes(totals, 2), j ∈ axes(totals, 1)
+        totals[j, i] = sum(@view predictedinfections[:, i, j])
+    end
+
+    for i ∈ 1:nhospitals
+        means[i] = mean(totals[:, i])
+        lcri, ucri = quantile(totals[:, i], cri)
+        lcris[i] = lcri
+        ucris[i] = ucri
+    end
+
+    return @ntuple totals means lcris ucris
 end

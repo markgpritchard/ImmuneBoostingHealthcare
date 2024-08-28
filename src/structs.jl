@@ -1,5 +1,5 @@
 
-struct Automatic end 
+struct Automatic end  # not exported
 automatic = Automatic()
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
