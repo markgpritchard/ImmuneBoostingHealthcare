@@ -9,6 +9,7 @@ Pkg.add(Pkg.PackageSpec(; name="Distributions", version="0.25.109"))
 Pkg.add(Pkg.PackageSpec(; name="DrWatson", version="2.15.0"))
 Pkg.add(Pkg.PackageSpec(; name="Pigeons", version="0.4.2"))
 Pkg.add(Pkg.PackageSpec(; name="StaticArrays", version="1.9.7"))
+Pkg.add(Pkg.PackageSpec(; name="StatsBase", version="0.34.3"))
 Pkg.add(Pkg.PackageSpec(; name="Turing", version="0.33.0"))
 
 using DrWatson
