@@ -230,7 +230,7 @@ end
         end
         βp = max(zero(T), α1 + α2 * vpd[j] + α3 * psb[j]) .* patients[:, j]
         βh = max(zero(T), α4 + α5 * vpd[j] + α6 * psb[j]) .* staff[:, j]
-        foi = βp .* βh .* βc
+        foi = βp .+ βh .+ βc
         for t ∈ 2:ndates 
             v = vaccinated[(t - 1), j]
             immune10 = predictedinfections + v * (1 - sum(immunevector) - predictedinfections)
