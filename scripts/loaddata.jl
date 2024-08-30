@@ -220,7 +220,7 @@ finaldata = let
     end
     finaldata.Code = CategoricalArray(finaldata.Code)
         
-    finaldata
+    Dict("finaldata" => finaldata)
 end
 
 safesave(datadir("exp_pro", "finaldata.jld2"), finaldata)
