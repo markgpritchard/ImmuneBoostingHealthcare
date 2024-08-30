@@ -74,7 +74,11 @@ simulations = let
     psbs = [ rand(truncated(Normal(0.221, 0.0205), 0, 1)) for _ ∈ 1:135 ]
     
     allbetas = [ 
-        [ rand(truncated(Normal(x - rand(Beta(4, 6)) * vpds[i] / 220_000 - rand(Beta(4, 6)) * psbs[i], 0.1), 0, 1)) for x ∈ [ 0.8, 0.8, 0.6, 0.405 ] ] 
+        [ 
+            rand(truncated(Normal(x - rand(Beta(4, 6)) * vpds[i] / 220_000 - 
+                rand(Beta(4, 6)) * psbs[i], 0.1), 0, 1)) 
+            for x ∈ [ 0.8, 0.8, 0.6, 0.405 ] 
+        ] 
         for i ∈ 1:135 
     ]
     
@@ -131,8 +135,10 @@ simulations = let
     end
 
     Dict( 
+        "allbetas" => allbetas,
         "boostedsimulation" => boostedsimulation, 
-        "unboostedsimulation" => unboostedsimulation 
+        "unboostedsimulation" => unboostedsimulation,
+        "communitycases" => COMMUNITYCASES, 
     )
 end
 

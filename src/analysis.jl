@@ -337,7 +337,10 @@ function summarizepredictedinfections(
     return _summarizepredictedinfections(predictedinfections, cri)
 end
 
-function summarizepredictedinfections(df::DataFrame, args...; cri=[ 0.05, 0.95 ], kwargs...)
+function summarizepredictedinfections(
+    df::DataFrame, args...; 
+    cri=[ 0.05, 0.5, 0.95 ], kwargs...
+)
     predictedinfections = predictinfections(df, args...; kwargs...) 
     return _summarizepredictedinfections(predictedinfections, cri)
 end
@@ -346,7 +349,7 @@ function _summarizepredictedinfections(predictedinfections, cri::Number)
     @assert cri <= 1 
     lcri = (1 - cri) / 2
     ucri = 1 - lcri 
-    return _summarizepredictedinfections(predictedinfections, [ lcr, ucri ])
+    return _summarizepredictedinfections(predictedinfections, [ lcr, 0.5, ucri ])
 end
 
 function _summarizepredictedinfections(predictedinfections, cri)
@@ -354,6 +357,7 @@ function _summarizepredictedinfections(predictedinfections, cri)
     totals = zeros(nsamples, nhospitals)
     means = zeros(nhospitals)
     lcris = zeros(nhospitals)
+    medians = zeros(nhospitals)
     ucris = zeros(nhospitals)
 
     for i ∈ axes(totals, 2), j ∈ axes(totals, 1)
@@ -362,10 +366,11 @@ function _summarizepredictedinfections(predictedinfections, cri)
 
     for i ∈ 1:nhospitals
         means[i] = mean(totals[:, i])
-        lcri, ucri = quantile(totals[:, i], cri)
+        lcri, median, ucri = quantile(totals[:, i], cri)
         lcris[i] = lcri
+        medians[i] = median
         ucris[i] = ucri
     end
 
-    return @ntuple totals means lcris ucris
+    return @ntuple totals means lcris medians ucris
 end
