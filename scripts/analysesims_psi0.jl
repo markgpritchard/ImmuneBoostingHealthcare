@@ -3,61 +3,63 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
-include("analysedatasetup.jl")
+include("analysesimssetup.jl")
 
-function fitdatamodel_target(
+function fitsimmodel_target(
     newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
-    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals
+    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals;
+    psiprior=0,
 )
     return Pigeons.TuringLogPotential(
         fitmodel(
             newstaff, patients, staff, vaccinated, community, 
-            vpd, psb, stringency, ndates, nhospitals
+            vpd, psb, stringency, ndates, nhospitals;
+            psiprior=0
         )
     )
 end
 
-const FitdatamodelType = typeof(fitdatamodel_target())
+const FitsimmodelType = typeof(fitsimmodel_target())
 
-function Pigeons.initialization(target::FitdatamodelType, rng::AbstractRNG, ::Int64)
+function Pigeons.initialization(target::FitsimmodelType, rng::AbstractRNG, ::Int64)
     result = DynamicPPL.VarInfo(
         rng, target.model, DynamicPPL.SampleFromPrior(), DynamicPPL.PriorContext()
     )
     DynamicPPL.link!!(result, DynamicPPL.SampleFromPrior(), target.model)
 
     Pigeons.update_state!(result, :α1, 1, 0.1)
-    Pigeons.update_state!(result, :α2, 1, 0.0)
-    Pigeons.update_state!(result, :α3, 1, 0.0)
+    Pigeons.update_state!(result, :α2, 1, 0.1)
+    Pigeons.update_state!(result, :α3, 1, 0.1)
     Pigeons.update_state!(result, :α4, 1, 0.1)
-    Pigeons.update_state!(result, :α5, 1, 0.0)
-    Pigeons.update_state!(result, :α6, 1, 0.0)
+    Pigeons.update_state!(result, :α5, 1, 0.1)
+    Pigeons.update_state!(result, :α6, 1, 0.1)
     Pigeons.update_state!(result, :α7, 1, 0.1)
-    Pigeons.update_state!(result, :α8, 1, 0.0)
+    Pigeons.update_state!(result, :α8, 1, 0.1)
     Pigeons.update_state!(result, :ω, 1, 0.02)
-    Pigeons.update_state!(result, :ψ, 1, 1.0)
     Pigeons.update_state!(result, :sigma2, 1, 0.05)
 
     return result
 end
 
 fitted_pt = pigeons( ;
-    target=fitdatamodel_target(
+    target=fitsimmodel_target(
         newstaff, patients, staff, vaccinated, community, 
-        vpd, psb, stringency, ndates, nhospitals
+        vpd, psb, stringency, ndates, nhospitals;
+        psiprior=0,
     ),
     n_rounds=0,
     n_chains=10,
     multithreaded=true,
     record=[ traces; record_default() ],
-    seed=(id),
+    seed=(1000 + id),
     variational=GaussianReference(),
 )
 
 new_pt = fitted_pt
 
 for i ∈ 1:n_rounds
-    filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
-    nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
+    filename = "fittedvalues_psi_0_$(sim)_id_$(id)_round_$(i).jld2"
+    nextfilename = "fittedvalues_psi_0_$(sim)_id_$(id)_round_$(i + 1).jld2"
     isfile(datadir("sims", nextfilename)) && continue
     if isfile(datadir("sims", filename))
         global new_pt = load(datadir("sims", filename))["pt"]

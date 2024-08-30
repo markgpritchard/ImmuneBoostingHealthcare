@@ -277,8 +277,13 @@ end
     α7 ~ alpha7prior
     α8 ~ alpha8prior
     ω ~ omegaprior 
-    ψ ~ psiprior
     sigma2 ~ sigma2prior
+
+    if psiprior isa Number 
+        ψ = psiprior 
+    else
+        ψ ~ psiprior
+    end
 
     T = typeof(α1)
 
@@ -314,7 +319,11 @@ end
     end
 end
 
-function loadchainsdf(filenamestart; ids=1:5, maxrounds=12,)
+function loadchainsdf(filenamestart; psiprior=Exponential(1), kwargs...)
+    return _loadchainsdf(filenamestart, psiprior; kwargs...)
+end
+
+function _loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
     df = DataFrame(
         :iteration => Int[ ],
         :chain => Int[ ],
@@ -345,6 +354,40 @@ function loadchainsdf(filenamestart; ids=1:5, maxrounds=12,)
             j += -1
         end
     end
+    return df
+end
+
+function _loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
+    df = DataFrame(
+        :iteration => Int[ ],
+        :chain => Int[ ],
+        :α1 => Float64[ ],
+        :α2 => Float64[ ],
+        :α3 => Float64[ ],
+        :α4 => Float64[ ],
+        :α5 => Float64[ ],
+        :α6 => Float64[ ],
+        :α7 => Float64[ ],
+        :α8 => Float64[ ],
+        :ω => Float64[ ],
+        :sigma2 => Float64[ ],
+        :log_density => Float64[ ],
+    )
+    for i ∈ ids
+        _loaded = false 
+        j = maxrounds
+        while !_loaded && j >= 1
+            filename = "$(filenamestart)_id_$(i)_round_$(j).jld2"
+            if isfile(datadir("sims", filename))
+                _df = DataFrame(load(datadir("sims", filename))["chain"])
+                _df.chain = [ i for _ ∈ axes(_df, 1) ]
+                df = vcat(df, _df)
+                _loaded = true
+            end
+            j += -1
+        end
+    end
+    insertcols!(df, 12, :ψ => psiprior)
     return df
 end
 

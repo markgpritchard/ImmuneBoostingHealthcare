@@ -7,12 +7,14 @@ include("analysedatasetup.jl")
 
 function fitdatamodel_target(
     newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
-    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals
+    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals;
+    psiprior=0,
 )
     return Pigeons.TuringLogPotential(
         fitmodel(
             newstaff, patients, staff, vaccinated, community, 
-            vpd, psb, stringency, ndates, nhospitals
+            vpd, psb, stringency, ndates, nhospitals;
+            psiprior=0
         )
     )
 end
@@ -34,7 +36,6 @@ function Pigeons.initialization(target::FitdatamodelType, rng::AbstractRNG, ::In
     Pigeons.update_state!(result, :α7, 1, 0.1)
     Pigeons.update_state!(result, :α8, 1, 0.0)
     Pigeons.update_state!(result, :ω, 1, 0.02)
-    Pigeons.update_state!(result, :ψ, 1, 1.0)
     Pigeons.update_state!(result, :sigma2, 1, 0.05)
 
     return result
@@ -43,7 +44,8 @@ end
 fitted_pt = pigeons( ;
     target=fitdatamodel_target(
         newstaff, patients, staff, vaccinated, community, 
-        vpd, psb, stringency, ndates, nhospitals
+        vpd, psb, stringency, ndates, nhospitals;
+        psiprior=0,
     ),
     n_rounds=0,
     n_chains=10,
@@ -56,8 +58,8 @@ fitted_pt = pigeons( ;
 new_pt = fitted_pt
 
 for i ∈ 1:n_rounds
-    filename = "fittedvalues_coviddata_id_$(id)_round_$(i).jld2"
-    nextfilename = "fittedvalues_coviddata_id_$(id)_round_$(i + 1).jld2"
+    filename = "fittedvalues_psi_0_coviddata_id_$(id)_round_$(i).jld2"
+    nextfilename = "fittedvalues_psi_0_coviddata_id_$(id)_round_$(i + 1).jld2"
     isfile(datadir("sims", nextfilename)) && continue
     if isfile(datadir("sims", filename))
         global new_pt = load(datadir("sims", filename))["pt"]

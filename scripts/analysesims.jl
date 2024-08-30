@@ -3,54 +3,7 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
-using CategoricalArrays, CSV, DataFrames, Dates, Pigeons, Random, Turing
-
-if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-else 
-    include("loaddata.jl")
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-end
-
-if isfile(datadir("sims", "simulations.jld2"))
-    simulations = load(datadir("sims", "simulations.jld2"))
-else 
-    include("generatesimulations.jl")
-end
-
-if length(ARGS) == 3
-    id = parse(Int, ARGS[1])
-    n_rounds = parse(Int, ARGS[2])
-    sim = ARGS[3]
-else
-    id = 1 
-    n_rounds = 10
-    sim = "unboostedsimulation"
-end
-
-## no boosting 
-
-simulation = simulations[sim]
-
-nhospitals = counthospitals(simulation)
-ndates = countdates(simulation; dateid=:t)
-
-@unpack newstaff, patients, staff = datamatrices(simulation, ndates, nhospitals)
-@unpack vpd, psb = hospitalconditionmatrices(simulation)
-
-stringency = finaldata.StringencyIndex_Average[1:ndates]
-community = simulation.CommunityCases[1:ndates] ./ 56_000_000
-
-# numbers vaccinated currently simulated 
-vaccinated = let
-    vaccinated = zeros(ndates, nhospitals)
-    for d ∈ axes(vaccinated, 1), h ∈ axes(vaccinated, 2)
-        if d == 300
-            vaccinated[d, h] = 0.9
-        end
-    end
-    vaccinated
-end
+include("analysesimssetup.jl")
 
 function fitsimmodel_target(
     newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
