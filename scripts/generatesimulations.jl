@@ -7,9 +7,10 @@ using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distribu
 using Random, StaticArrays
 
 if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 else 
     include("loaddata.jl")
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
 end
 
 ## Simulate community

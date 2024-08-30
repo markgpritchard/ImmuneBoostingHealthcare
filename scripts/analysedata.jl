@@ -6,9 +6,10 @@ using DrWatson
 using CategoricalArrays, CSV, DataFrames, Dates, Pigeons, Random, Turing
 
 if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 else 
     include("loaddata.jl")
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
 end
 
 if length(ARGS) == 2 

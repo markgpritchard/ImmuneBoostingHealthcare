@@ -1,11 +1,20 @@
 
-include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoostingHealthcare
+using DrWatson
+
+@quickactivate :ImmuneBoostingHealthcare
+
 include(srcdir("PlottingFunctions.jl"))
 
-#using Turing, Pigeons, Random
-#using CairoMakie, Pigeons, StatsBase
-using CairoMakie, Pigeons
+using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
+
+
+if isfile(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
+else 
+    include("loaddata.jl")
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+end
 
 if isfile(datadir("sims", "simulations.jld2"))
     simulations = load(datadir("sims", "simulations.jld2"))
