@@ -6,14 +6,14 @@ using DrWatson
 using CategoricalArrays, CSV, DataFrames, Dates, Pigeons, Random, Turing
 
 if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 else 
     include("loaddata.jl")
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 end
 
 if isfile(datadir("sims", "simulations.jld2"))
-    simulations = load(datadir("sims", "simulations.jld2"))["finaldata"]
+    simulations = load(datadir("sims", "simulations.jld2"))
 else 
     include("generatesimulations.jl")
 end

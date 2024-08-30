@@ -10,7 +10,7 @@ if isfile(datadir("exp_pro", "finaldata.jld2"))
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 else 
     include("loaddata.jl")
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 end
 
 ## Simulate community
