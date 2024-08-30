@@ -76,7 +76,10 @@ function Pigeons.initialization(target::FitdatamodelType, rng::AbstractRNG, ::In
 end
 
 fitted_pt = pigeons( ;
-    target=fitdatamodel_target(),
+    target=fitdatamodel_target(
+        newstaff, patients, staff, vaccinated, community, 
+        vpd, psb, stringency, ndates, nhospitals
+    ),
     n_rounds=0,
     n_chains=10,
     multithreaded=true,

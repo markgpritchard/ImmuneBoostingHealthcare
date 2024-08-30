@@ -89,7 +89,7 @@ end
 
 fitted_pt = pigeons( ;
     target=fitsimmodel_target(
-        newstaffewstaff, patients, staff, vaccinated, community, 
+        newstaff, patients, staff, vaccinated, community, 
         vpd, psb, stringency, ndates, nhospitals
     ),
     n_rounds=0,
