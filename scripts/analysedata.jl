@@ -1,7 +1,15 @@
 
-include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoostingHealthcare
+using DrWatson
 
-using Turing, Pigeons, Random
+@quickactivate :ImmuneBoostingHealthcare
+
+using CategoricalArrays, CSV, DataFrames, Dates, Pigeons, Random, Turing
+
+if isfile(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+else 
+    include("loaddata.jl")
+end
 
 if length(ARGS) == 2 
     id = parse(Int, ARGS[1])

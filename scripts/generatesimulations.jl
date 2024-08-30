@@ -1,7 +1,16 @@
 
-include("loaddata.jl")  # includes using DrWatson and @quickactivate :ImmuneBoostingHealthcare
+using DrWatson
 
-using DifferentialEquations, Distributions, Random, StaticArrays
+@quickactivate :ImmuneBoostingHealthcare
+
+using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions
+using Random, StaticArrays
+
+if isfile(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))
+else 
+    include("loaddata.jl")
+end
 
 ## Simulate community
 
