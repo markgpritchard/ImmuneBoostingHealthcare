@@ -38,7 +38,7 @@ ndates = countdates(simulation; dateid=:t)
 @unpack newstaff, patients, staff = datamatrices(simulation, ndates, nhospitals)
 @unpack vpd, psb = hospitalconditionmatrices(simulation)
 
-stringency = coviddata.StringencyIndex_Average[1:ndates]
+stringency = finaldata.StringencyIndex_Average[1:ndates]
 community = simulation.CommunityCases[1:ndates] ./ 56_000_000
 
 # numbers vaccinated currently simulated 
@@ -62,7 +62,6 @@ function fitsimmodel_target(
             vpd, psb, stringency, ndates, nhospitals
         )
     )
-    
 end
 
 const FitsimmodelType = typeof(fitsimmodel_target())
@@ -89,7 +88,10 @@ function Pigeons.initialization(target::FitsimmodelType, rng::AbstractRNG, ::Int
 end
 
 fitted_pt = pigeons( ;
-    target=fitsimmodel_target(),
+    target=fitsimmodel_target(
+        newstaffewstaff, patients, staff, vaccinated, community, 
+        vpd, psb, stringency, ndates, nhospitals
+    ),
     n_rounds=0,
     n_chains=10,
     multithreaded=true,
