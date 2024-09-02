@@ -277,13 +277,14 @@ end
     α7 ~ alpha7prior
     α8 ~ alpha8prior
     ω ~ omegaprior 
-    sigma2 ~ sigma2prior
 
     if psiprior isa Number 
         ψ = psiprior 
     else
         ψ ~ psiprior
     end
+
+    sigma2 ~ sigma2prior
 
     T = typeof(α1)
 
