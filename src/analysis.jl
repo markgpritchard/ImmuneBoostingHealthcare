@@ -252,6 +252,7 @@ end
 end
 =#
 
+
 @model function fitmodel(
     newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
@@ -319,6 +320,81 @@ end
         end
     end
 end
+
+#=
+@model function fitmodel(
+    newstaff, patients, staff, vaccinated, community, 
+    vpd, psb, stringency, ndates, nhospitals;
+    alpha1prior=truncated(Normal(0, 1), -1, 10),
+    alpha2prior=Normal(0, 0.001),
+    alpha3prior=Normal(0, 1),
+    alpha4prior=truncated(Normal(0, 1), -1, 10),
+    alpha5prior=Normal(0, 0.001),
+    alpha6prior=Normal(0, 1),
+    alpha7prior=truncated(Normal(0, 1), -1, 10),
+    alpha8prior=truncated(Normal(0, 0.1), 0, 10),  # require greater stringency leads to less transmission
+    omegaprior=Uniform(0, 0.1),
+    psiprior=Exponential(1),
+    sigma2prior=Exponential(1),
+    immunevectorlength=3,
+)
+    α1 ~ alpha1prior
+    α2 ~ alpha2prior
+    α3 ~ alpha3prior
+    α4 ~ alpha4prior
+    α5 ~ alpha5prior
+    α6 ~ alpha6prior
+    α7 ~ alpha7prior
+    α8 ~ alpha8prior
+    ω ~ omegaprior 
+
+    if psiprior isa Number 
+        ψ = psiprior 
+    else
+        ψ ~ psiprior
+    end
+
+    sigma2_bp ~ sigma2prior
+    sigma2_bh ~ sigma2prior
+    sigma2 ~ sigma2prior
+
+    T = typeof(α1)
+
+    # levels of immunity
+    immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
+
+    λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
+    βp = zeros(T, nhospitals)
+    βh = zeros(T, nhospitals)
+    
+    for j ∈ 1:nhospitals
+        predictedinfections = 0
+        for x ∈ 1:immunevectorlength  # reset immunevector
+            immunevector[x] = zero(T)
+        end
+        βp[j] ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], sigma2_bp), 0, 10)
+        βh[j] ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], sigma2_bh), 0, 10)
+        for t ∈ 2:ndates 
+            foi = λc[t] + βp[j] * patients[t, j] + βh[j] * predictedinfections
+            v = vaccinated[(t - 1), j]
+            immune10 = predictedinfections + v * (1 - sum(immunevector) - predictedinfections)
+            # probability of boosting from natural immune boosting plus vaccination
+            pb = (1 - exp(-ψ * foi)) * (1 - v) + v  
+            for x ∈ 1:immunevectorlength-1
+                immune10 += pb * immunevector[x]
+                immunevector[x] += -(pb + immunevectorlength * ω) * immunevector[x] + 
+                    immunevectorlength * ω * (1 - pb) * immunevector[x+1]
+            end
+            immunevector[immunevectorlength] += -(immunevectorlength * ω * (1 - pb)) * 
+                immunevector[immunevectorlength] + 
+                immune10
+            predictedinfections = (1 - sum(immunevector)) * (1 - exp(-foi))
+            Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
+        end
+    end
+end
+=#
+
 #=
 @memoize function _memofitfunction!(
     immunevector::SizedVector{immunevectorlength, T, Vector{T}}, 
