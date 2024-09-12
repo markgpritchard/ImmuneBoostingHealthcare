@@ -25,7 +25,7 @@ end
 ## Unboosted sims 
 
 #unboostedsimulation = simulations["unboostedsimulation"]
-@unpack unboostedsimulation, allbetas = simulations
+@unpack unboostedsimulation = simulations
 
 nhospitals = counthospitals(unboostedsimulation)
 ndates = countdates(unboostedsimulation; dateid=:t)
