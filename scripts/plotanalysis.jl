@@ -42,7 +42,7 @@ end
 @unpack newstaff, patients, staff = datamatrices(unboostedsimulation, ndates, nhospitals)
 @unpack vpd, psb = hospitalconditionmatrices(unboostedsimulation)
 
-stringency = coviddata.StringencyIndex_Average[1:ndates]
+stringency = finaldata.StringencyIndex_Average[1:ndates]
 community = unboostedsimulation.CommunityCases[1:ndates] ./ 56_000_000
 
 unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation")
@@ -261,7 +261,7 @@ scatter!(
 )
 #scatter!(ax3, totalinfections, predictedinfections.means .- predictedinfectionswithoutboost.means; color=:blue, markersize=3)
 
-scatter!(axs2[1], coviddata.Date[1:832], medianbetas[:βcmedians]; color=:blue, markersize=3)
+scatter!(axs2[1], finaldata.Date[1:832], medianbetas[:βcmedians]; color=:blue, markersize=3)
 
 #scatter!(axs2[2], ordinalrank(medianbetas[:βhmedians]), medianbetas[:βhmedians]; color=:blue, markersize=3)
 scatter!(axs2[2], totalinfections, medianbetas[:βhmedians]; color=:blue, markersize=3)

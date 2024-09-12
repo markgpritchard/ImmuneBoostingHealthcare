@@ -48,7 +48,7 @@ fitted_pt = pigeons( ;
         psiprior=0,
     ),
     n_rounds=0,
-    n_chains=10,
+    n_chains=5,
     multithreaded=true,
     record=[ traces; record_default() ],
     seed=(id),
@@ -71,7 +71,7 @@ for i ∈ 1:n_rounds
             "chain" => new_chains, 
             "pt" => new_pt, 
             "n_rounds" => i, 
-            "n_chains" => 10,
+            "n_chains" => 5,
         )
         safesave(datadir("sims", filename), resultdict)
     end

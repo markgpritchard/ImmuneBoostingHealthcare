@@ -3,8 +3,10 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
-using CategoricalArrays, CSV, DataFrames, Dates, DifferentialEquations, Distributions
-using Random, StaticArrays
+using CategoricalArrays, CSV, DataFrames, Dates, Distributions, Random, StaticArrays
+using StatsBase
+
+#using BenchmarkTools
 
 if isfile(datadir("exp_pro", "finaldata.jld2"))
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
@@ -15,140 +17,244 @@ end
 
 ## Simulate community
 
-const COMMUNITYSOL = let
-    u0_community = seiirrrs_u0(; S=55_990_000, E=10_000)
-
-    p0_community = SEIIRRRSp( ; 
-        beta=0.4, 
-        gamma=0.2, 
-        epsilon=0.0,
-        rho=0.5, 
-        omega=0.01
-    ) 
-    
-    communitylockdown!(integrator) = integrator.p = modifyp(integrator.p; beta=0.2)
-    communitylockdowncb = PresetTimeCallback(
-        80, communitylockdown!; 
-        save_positions=( false, false )
-    )
-    communityendlockdown!(integrator) = integrator.p = modifyp(integrator.p; beta=0.3)
-    communityendlockdowncb = PresetTimeCallback(
-        130, communityendlockdown!; 
-        save_positions=( false, false )
-    )
-    
-    communitycbs = CallbackSet(communitylockdowncb, communityendlockdowncb)
-    
-    communityprob = ODEProblem(seiirrrs!, u0_community, ( 0.0, 800.0 ), p0_community)
-    communitysol = solve(communityprob, Vern9(; lazy=false); callback=communitycbs, saveat=10)
-
-    communitysol
-end
-
-const COMMUNITYCASES = [ sum(@view COMMUNITYSOL[i][3:4]) for i ∈ eachindex(COMMUNITYSOL) ]
-
-simulations = let
-    function hospitalaffect!(integrator)
-        i = round(Int, integrator.t / 10) + 1
-        n = sum(@view integrator.u[1:6])
-        adjustv = 450 / n
-        alpha1 = 0.2 * adjustv * COMMUNITYSOL[i][1] / sum(@view COMMUNITYSOL[i][1:8])
-        alpha2 = 0.2 * adjustv * COMMUNITYSOL[i][2] / sum(@view COMMUNITYSOL[i][1:8])
-        alpha3 = 0.2 * adjustv * sum(@view COMMUNITYSOL[i][3:4]) / sum(@view COMMUNITYSOL[i][1:8])
-        alpha4 = 0.2 * adjustv * sum(@view COMMUNITYSOL[i][5:8]) / sum(@view COMMUNITYSOL[i][1:8])
-        lambdac = COMMUNITYSOL[i][11] / 10
-        integrator.p = modifyp(
-            integrator.p; 
-            alpha=SA[ alpha1, alpha2, alpha3, alpha4 ], lambdac
-        )
-    end
-    hospitalaffecttimes = collect(10:10:800)
-    cb = PresetTimeCallback(hospitalaffecttimes, hospitalaffect!; save_positions=( false, false ))
-    
-    function vaccinate!(integrator) 
-        vaccn = 0.0
-        for i ∈ [ 7, 11, 12, 13 ]
-            v = 0.9 * integrator.u[i]
-            integrator.u[i] += -v
-            vaccn += v
+simulations = let 
+    function modeltransmission(t) 
+        if t < 80 
+            return 0.5 * (1 + 0.05 * cos(2π * t / 365))
+        elseif t < 130 
+            return 0.4
+        else 
+            return 0.475 * (1 + 0.05 * cos(2π * t / 365))
         end
-        integrator.u[14] += vaccn 
     end
-    vcb = PresetTimeCallback(300, vaccinate!; save_positions=( false, false ))
     
-    cbs = CallbackSet(cb, vcb)
+    function modelvaccination(t)
+        if 300 < t < 330
+            return 0.02
+        elseif 400 < t < 430
+            return 0.0075
+        elseif 600 < t < 630
+            return 0.01
+        else 
+            return 0.0 
+        end
+    end
     
-    # beta parameters for each hospital -- kept constant across different boosting conditions 
     Random.seed!(1729)
-    vpds = [ rand(truncated(Normal(510, 290_000), 0, 824_000)) for _ ∈ 1:135 ]
-    psbs = [ rand(truncated(Normal(0.221, 0.0205), 0, 1)) for _ ∈ 1:135 ]
     
-    allbetas = [ 
-        [ 
-            rand(truncated(Normal(x - rand(Beta(4, 6)) * vpds[i] / 220_000 - 
-                rand(Beta(4, 6)) * psbs[i], 0.1), 0, 1)) 
-            for x ∈ [ 0.8, 0.8, 0.6, 0.405 ] 
-        ] 
-        for i ∈ 1:135 
+    communityvalues = let 
+        u0_community = [ 55_999_900, 100, 0, 0, 0, 0, 0, 0 ]
+        communityp = SEIIRRRSp(
+            modeltransmission,  # infection rate 
+            0.5,  # rate of leaving exposed compartments 
+            0.2,  # rate of leaving infectious compartment
+            0.0,  # strength of "force of boosting" relative to λ
+            modelvaccination,  # vaccination rate
+            0.01  # rate of immune waning 
+        )
+        stochasticseiirrrs(u0_community, 1:831, communityp)
+    end
+    
+    global const COMMUNITYVALUES = deepcopy(communityvalues)
+    
+    simweeklycases = [
+        (
+            start = max(1, 7 * round(Int, (t - 0.5 ) / 7, RoundDown));
+            lst = min(831, 7 * round(Int, (t - 0.5 ) / 7, RoundUp));
+            sum(@view communityvalues[start:lst, 3:4])
+        )
+        for t ∈ 1:831
     ]
     
-    # Simulate 135 hospitals with no immune boosting.
+    function modelcommunitytransmissiontohcw(t)
+        num = sum(@view COMMUNITYVALUES[round(Int, t, RoundUp), 3:4]) 
+        denom = sum(@view COMMUNITYVALUES[round(Int, t, RoundUp), 1:7])
+        return num * modeltransmission(t) / (1.5 * denom)
+    end
     
-    u0 = wxyyzseiirrrs_u0(; W=450, S=900)
+    ## Simulate hospitals
     
-    unboostedp0 = WXYYZSEIIRRRSp( ; 
-        alpha=SA[ 0.2, 0.0, 0.0, 0.0 ], 
-        beta=SA[ 0.4, 0.4, 0.2, 0.05 ],  # (βhh, βhp, βph, βpp)
-        gamma=0.2, 
-        delta=SA[ 0.2, 0.1], 
-        epsilon=0.0,
-        lambdac=0.01, 
-        rho=0.5, 
-        omega=0.01
-    ) 
-    
-    unboostedsimulation = simulatehospitals(
-        135, u0, 800, unboostedp0; 
-        abstol=1e-15, callback=cbs, maxiters=5e4, allbetas, saveat=1
+    simdata_noboost = DataFrame(
+        :Code => String7[ ],
+        :StringCodes => String7[ ],
+        :Date => Missing[ ],
+        :CovidBeds => Int64[ ],
+        :AllBeds => Int64[ ],
+        :StaffAbsences => Int64[ ],
+        :StaffTotal => Int64[ ],
+        :CovidPatients => Float64[ ],
+        :CovidAbsences => Float64[ ],
+        :PatientsProportion => Float64[ ],
+        :StaffProportion => Float64[ ],
+        :VolumePerBed => Float64[ ],
+        :ProportionSingleBeds => Float64[ ],
+        :weeklycases => Int64[ ],
+        :StringencyIndex_Average => Float64[ ],
+        :t => Float64[ ],
+        :betahh => Float64[ ],
+        :betahp => Float64[ ],
+        :betaph => Float64[ ],
+        :betapp => Float64[ ],
     )
     
-    boostedp0 = WXYYZSEIIRRRSp( ; 
-        alpha=SA[ 0.2, 0.0, 0.0, 0.0 ], 
-        beta=SA[ 0.4, 0.2, 0.2, 0.05 ],  # (βhh, βhp, βph, βpp)
-        gamma=0.2, 
-        delta=SA[ 0.2, 0.1], 
-        epsilon=1.0,
-        lambdac=0.01, 
-        rho=0.5, 
-        omega=0.01
-    ) 
+    for h ∈ 1:100
+        Random.seed!(h)
+        patienttotal = max(10, sample(finaldata.AllBeds)) 
+        stafftotal = sample(finaldata.StaffTotal)  
+        vpd = sample(finaldata.VolumePerBed) 
+        psb = sample(finaldata.ProportionSingleBeds) 
+        
+        u0 = zeros(Int, 15)
+        u0[1] = patienttotal 
+        u0[7] = stafftotal
     
-    boostedsimulation = simulatehospitals(
-        135, u0, 800, boostedp0; 
-        abstol=1e-15, callback=cbs, maxiters=5e4, allbetas, saveat=1
+        p = WXYYZSEIIRRRSp(
+            rand(Uniform(0.1, 0.3)) - vpd / 20000,  # rate of infection from healthcare worker to healthcare worker 
+            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from patient to healthcare worker  
+            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from healthcare worker to patient  
+            rand(Uniform(0.05, 0.15)) - psb / 20,  # rate of infection from patient to patient  
+            0.5,  # rate of leaving exposed compartments 
+            0.2,  # rate of leaving infectious compartment
+            0.0,  # strength of "force of boosting" relative to λ
+            modelvaccination, # healthcare worker vaccination rate
+            0.01,  # rate of immune waning 
+            rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
+            rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
+            modelcommunitytransmissiontohcw  # community force of infection  
+        )
+        
+        hospital = stochasticwxyyzseiirrrs(u0, 1.0:831.0, p, communityvalues)
+    
+        df = DataFrame(
+            :Code => [ "$h" for _ ∈ 1:831 ],
+            :StringCodes => [ "$h" for _ ∈ 1:831 ],
+            :Date => [ missing for _ ∈ 1:831 ],
+            :CovidBeds => [ sum(@view hospital[t, 3:5]) for t ∈ 1:831 ],
+            :AllBeds => [ sum(@view hospital[t, 1:6]) for t ∈ 1:831 ],
+            :StaffAbsences => [ sum(@view hospital[t, 9:10]) for t ∈ 1:831 ],
+            :StaffTotal => [ sum(@view hospital[t, 7:13]) for t ∈ 1:831 ],
+            :CovidPatients => [ 
+                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                for t ∈ 1:831 
+            ],
+            :CovidAbsences => [ 
+                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                for t ∈ 1:831 
+            ],
+            :PatientsProportion => [ 
+                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                for t ∈ 1:831 
+            ],
+            :StaffProportion => [ 
+                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                for t ∈ 1:831 
+            ],
+            :VolumePerBed => [ vpd for _ ∈ 1:831 ],
+            :ProportionSingleBeds => [ psb for _ ∈ 1:831 ],
+            :weeklycases => simweeklycases,
+            :StringencyIndex_Average => finaldata.StringencyIndex_Average[2:832],
+            :t => 1.0:831.0,
+            :betahh => [ betahh(p, t) for t ∈ 1:831 ],
+            :betahp => [ betahp(p, t) for t ∈ 1:831 ],
+            :betaph => [ betaph(p, t) for t ∈ 1:831 ],
+            :betapp => [ betapp(p, t) for t ∈ 1:831 ],
+        )
+        append!(simdata_noboost, df)
+    end
+    
+    simdata_boost = DataFrame(
+        :Code => String7[ ],
+        :StringCodes => String7[ ],
+        :Date => Missing[ ],
+        :CovidBeds => Int64[ ],
+        :AllBeds => Int64[ ],
+        :StaffAbsences => Int64[ ],
+        :StaffTotal => Int64[ ],
+        :CovidPatients => Float64[ ],
+        :CovidAbsences => Float64[ ],
+        :PatientsProportion => Float64[ ],
+        :StaffProportion => Float64[ ],
+        :VolumePerBed => Float64[ ],
+        :ProportionSingleBeds => Float64[ ],
+        :weeklycases => Int64[ ],
+        :StringencyIndex_Average => Float64[ ],
+        :t => Float64[ ],
+        :betahh => Float64[ ],
+        :betahp => Float64[ ],
+        :betaph => Float64[ ],
+        :betapp => Float64[ ],
     )
     
-    for sim ∈ [ unboostedsimulation, boostedsimulation ]
-        insertcols!(
-            sim,
-            :CommunityCases => [ COMMUNITYCASES[sim.t[i] >= 800 ? 80 : round(Int, sim.t[i] / 10, RoundDown)+1] for i ∈ axes(sim, 1) ],
-            :VolumePerBed => [ vpds[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
-            :ProportionSingleBeds => [ psbs[levelcode(sim.Code[i])] for i ∈ axes(sim, 1) ],
-            :DiagnosedY => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.Y ],
-            :DiagnosedI => [ rand(Binomial(round(Int, y), 0.9)) for y ∈ sim.I ],
+    for h ∈ 1:100
+        Random.seed!(h)
+        patienttotal = max(10, sample(finaldata.AllBeds)) 
+        stafftotal = sample(finaldata.StaffTotal)  
+        vpd = sample(finaldata.VolumePerBed) 
+        psb = sample(finaldata.ProportionSingleBeds) 
+        
+        u0 = zeros(Int, 15)
+        u0[1] = patienttotal 
+        u0[7] = stafftotal
+        
+        p = WXYYZSEIIRRRSp(
+            rand(Uniform(0.1, 0.3)) - vpd / 20000,  # rate of infection from healthcare worker to healthcare worker 
+            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from patient to healthcare worker  
+            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from healthcare worker to patient  
+            rand(Uniform(0.05, 0.15)) - psb / 20,  # rate of infection from patient to patient  
+            0.5,  # rate of leaving exposed compartments 
+            0.2,  # rate of leaving infectious compartment
+            2.0,  # strength of "force of boosting" relative to λ
+            modelvaccination, # healthcare worker vaccination rate
+            0.01,  # rate of immune waning 
+            rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
+            rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
+            modelcommunitytransmissiontohcw  # community force of infection  
         )
-        insertcols!(
-            sim,
-            :PatientsProportion => sim.DiagnosedY ./ sim.M,
-            :StaffProportion => sim.DiagnosedI ./ sim.N,
+        
+        hospital = stochasticwxyyzseiirrrs(u0, 1.0:831.0, p, communityvalues)
+    
+        df = DataFrame(
+            :Code => [ "$h" for _ ∈ 1:831 ],
+            :StringCodes => [ "$h" for _ ∈ 1:831 ],
+            :Date => [ missing for _ ∈ 1:831 ],
+            :CovidBeds => [ sum(@view hospital[t, 3:5]) for t ∈ 1:831 ],
+            :AllBeds => [ sum(@view hospital[t, 1:6]) for t ∈ 1:831 ],
+            :StaffAbsences => [ sum(@view hospital[t, 9:10]) for t ∈ 1:831 ],
+            :StaffTotal => [ sum(@view hospital[t, 7:13]) for t ∈ 1:831 ],
+            :CovidPatients => [
+                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                for t ∈ 1:831 
+            ],
+            :CovidAbsences => [ 
+                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                for t ∈ 1:831 
+            ],
+            :PatientsProportion => [ 
+                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                for t ∈ 1:831 
+            ],
+            :StaffProportion => [ 
+                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                for t ∈ 1:831 
+            ],
+            :VolumePerBed => [ vpd for _ ∈ 1:831 ],
+            :ProportionSingleBeds => [ psb for _ ∈ 1:831 ],
+            :weeklycases => simweeklycases,
+            :StringencyIndex_Average => finaldata.StringencyIndex_Average[2:832],
+            :t => 1.0:831.0,
+            :betahh => [ betahh(p, t) for t ∈ 1:831 ],
+            :betahp => [ betahp(p, t) for t ∈ 1:831 ],
+            :betaph => [ betaph(p, t) for t ∈ 1:831 ],
+            :betapp => [ betapp(p, t) for t ∈ 1:831 ],
         )
+        append!(simdata_boost, df)
     end
 
     Dict( 
-        "allbetas" => allbetas,
-        "boostedsimulation" => boostedsimulation, 
-        "unboostedsimulation" => unboostedsimulation,
-        "communitycases" => COMMUNITYCASES, 
+        "boostedsimulation" => simdata_boost, 
+        "unboostedsimulation" => simdata_noboost,
+        "communitycases" => communityvalues, 
+        "simweeklycases" => simweeklycases,
     )
 end
 

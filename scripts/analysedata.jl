@@ -6,8 +6,16 @@ using DrWatson
 include("analysedatasetup.jl")
 
 function fitdatamodel_target(
-    newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
-    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals
+    newstaff=newstaff, 
+    patients=patients, 
+    staff=staff, 
+    vaccinated=vaccinated, 
+    community=community, 
+    vpd=vpd, 
+    psb=psb, 
+    stringency=stringency, 
+    ndates=ndates, 
+    nhospitals=nhospitals
 )
     return Pigeons.TuringLogPotential(
         fitmodel(
@@ -46,7 +54,7 @@ fitted_pt = pigeons( ;
         vpd, psb, stringency, ndates, nhospitals
     ),
     n_rounds=0,
-    n_chains=10,
+    n_chains=5,
     multithreaded=true,
     record=[ traces; record_default() ],
     seed=(id),
@@ -69,7 +77,7 @@ for i ∈ 1:n_rounds
             "chain" => new_chains, 
             "pt" => new_pt, 
             "n_rounds" => i, 
-            "n_chains" => 10,
+            "n_chains" => 5,
         )
         safesave(datadir("sims", filename), resultdict)
     end

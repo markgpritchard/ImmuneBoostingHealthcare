@@ -34,8 +34,8 @@ ndates = countdates(simulation; dateid=:t)
 @unpack newstaff, patients, staff = datamatrices(simulation, ndates, nhospitals)
 @unpack vpd, psb = hospitalconditionmatrices(simulation)
 
-stringency = finaldata.StringencyIndex_Average[1:ndates]
-community = simulation.CommunityCases[1:ndates] ./ 56_000_000
+stringency = simulation.StringencyIndex_Average[1:ndates]
+community = simulation.weeklycases[1:ndates] ./ 56_000_000
 
 # numbers vaccinated currently simulated 
 vaccinated = let

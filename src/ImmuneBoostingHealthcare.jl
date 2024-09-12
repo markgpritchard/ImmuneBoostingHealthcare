@@ -2,8 +2,7 @@
 module ImmuneBoostingHealthcare
 
 using DrWatson
-using CategoricalArrays, DataFrames, DifferentialEquations, Distributions, StaticArrays
-using StatsBase, Turing
+using CategoricalArrays, DataFrames, Distributions, StaticArrays, StatsBase, Turing
 import Base: minimum
 
 include("structs.jl")
@@ -16,12 +15,10 @@ include("plotting.jl")
 export 
     # structs.jl
     SEIIRRRSp, WXYYZSEIIRRRSp,
-    modifyp,
     # consts.jl
     
     # simulations.jl
-    seiirrrs!, wxyyzseiirrrs!, 
-    makeu0!, seiirrrs_u0, simulatehospital, simulatehospitals, wxyyzseiirrrs_u0,
+    betahh, betahp, betaph, betapp, stochasticseiirrrs, stochasticwxyyzseiirrrs,
     # processdata.jl
     insertproportions!,
     # analysis.jl
