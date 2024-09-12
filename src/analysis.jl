@@ -32,7 +32,7 @@ end
 function hospitalconditionmatrices(data)
     _tdf = select(data, :Code, :VolumePerBed, :ProportionSingleBeds)
     unique!(_tdf)
-    return @ntuple vpd=_tdf.VolumePerBed psb=_tdf.ProportionSingleBeds 
+    return @ntuple vpd=(_tdf.VolumePerBed)^(1/3) psb=_tdf.ProportionSingleBeds 
 end
 
 function predictinfections(
@@ -191,14 +191,14 @@ end
 @model function fitmodel(
     newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
-    alpha1prior=truncated(Normal(0, 1), -1, 10),
-    alpha2prior=Normal(0, 0.001),
+    alpha1prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha2prior=Normal(0, 0.1),
     alpha3prior=Normal(0, 1),
-    alpha4prior=truncated(Normal(0, 1), -1, 10),
-    alpha5prior=Normal(0, 0.001),
+    alpha4prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha5prior=Normal(0, 0.1),
     alpha6prior=Normal(0, 1),
-    alpha7prior=truncated(Normal(0, 1), -1, 10),
-    alpha8prior=truncated(Normal(0, 0.1), 0, 10),  # require greater stringency leads to less transmission
+    alpha7prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha8prior=truncated(Normal(0.1, 0.1), 0, 10),  # require greater stringency leads to less transmission
     omegaprior=Uniform(0, 0.1),
     psiprior=Exponential(1),
     sigma2prior=Exponential(1),
