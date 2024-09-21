@@ -5,68 +5,7 @@ using DrWatson
 
 include("analysedatasetup.jl")
 
-id = 6 ## temporarily 
-
-#=
-priorsamples = sample(
-    fitmodel(
-        newstaff, patients, staff, vaccinated, community, 
-        vpd, psb, stringency, ndates, nhospitals
-    ), 
-    Prior(), 
-    10_000
-)
-=#
-#=
-logprobinitialconditions = let
-    α1 = 0.1
-    α2 = 0.0
-    α3 = 0.0
-    α4 = 0.1
-    α5 = 0.0
-    α6 = 0.0
-    α7 = 0.1
-    α8 = 0.1
-    ω = 0.02 
-    ψ = 1.0
-    sigma2 = 1.0
-    
-    lp = 0.0 
-
-    T = typeof(α1)
-
-    λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
-    
-    for j ∈ 1:nhospitals
-        predictedinfections = 0.0
-        r1 = zero(T)
-        r2 = zero(T)
-        r3 = zero(T)
-        λp = max(zero(T), α1 + α2 * vpd[j] + α3 * psb[j]) .* patients[:, j]
-        βh = max(zero(T), α4 + α5 * vpd[j] + α6 * psb[j]) 
-        for t ∈ 2:ndates 
-            foi = λc[t] + λp[j] + βh * predictedinfections
-            ξ = 1 - exp(-ψ * foi)
-            predictedinfections = (1 - predictedinfections - r1 - r2 - r3) * (1 - exp(-foi))
-            newr1 = predictedinfections + vaccinated[(t - 1), j] + ξ * (r2 + r3) + (1 - (1 - ξ) * 3 * ω) * r1 
-            newr2 = (1 - ξ) * 3 * ω * r1 + (1 - (1 - ξ) * 3 * ω - ξ) * r2
-            newr3 = (1 - ξ) * 3 * ω * r2 + (1 - (1 - ξ) * 3 * ω - ξ) * r3 
-            r1 = newr1 
-            r2 = newr2 
-            r3 = newr3
-            lp += logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
-        end
-    end
-
-    lp
-end
-=#
-
-# This code sets `Pigeons.initialization` to ensure that the first set of parameters used
-# give a valid output
-
 function fitdatamodel_target(
-    newstaff=newstaff, 
     patients=patients, 
     staff=staff, 
     vaccinated=vaccinated, 
@@ -79,8 +18,7 @@ function fitdatamodel_target(
 )
     return Pigeons.TuringLogPotential(
         fitmodel(
-            newstaff, patients, staff, vaccinated, community, 
-            vpd, psb, stringency, ndates, nhospitals
+            patients, staff, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
         )
     )
 end
@@ -103,6 +41,7 @@ function Pigeons.initialization(target::FitdatamodelType, rng::AbstractRNG, ::In
     Pigeons.update_state!(result, :α8, 1, 0.1)
     Pigeons.update_state!(result, :ω, 1, 0.02)
     Pigeons.update_state!(result, :ψ, 1, 1.0)
+    Pigeons.update_state!(result, :θ, 1, 2/7)
     Pigeons.update_state!(result, :sigma2, 1, 1.0)
 
     return result
@@ -114,7 +53,7 @@ fitted_pt = pigeons( ;
         vpd, psb, stringency, ndates, nhospitals
     ),
     n_rounds=0,
-    n_chains=5,
+    n_chains=4,
     multithreaded=true,
     record=[ traces; record_default() ],
     seed=(id),
@@ -137,7 +76,7 @@ for i ∈ 1:n_rounds
             "chain" => new_chains, 
             "pt" => new_pt, 
             "n_rounds" => i, 
-            "n_chains" => 5,
+            "n_chains" => 4,
         )
         safesave(datadir("sims", filename), resultdict)
     end

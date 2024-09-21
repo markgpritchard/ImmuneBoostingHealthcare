@@ -24,6 +24,10 @@ ndates = countdates(finaldata)
 
 stringency = finaldata.StringencyIndex_Average[1:ndates]
 community = finaldata.weeklycases[1:ndates] ./ 56_000_000
+# clean anomalous community values 
+for i ∈ [ 106:112; 684:690 ]
+    community[i] = (community[i-7] + community[i+7]) / 2
+end
 
 # numbers vaccinated currently simulated 
 vaccinated = let

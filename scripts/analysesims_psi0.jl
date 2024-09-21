@@ -6,14 +6,20 @@ using DrWatson
 include("analysesimssetup.jl")
 
 function fitsimmodel_target(
-    newstaff=newstaff, patients=patients, staff=staff, vaccinated=vaccinated, community=community, 
-    vpd=vpd, psb=psb, stringency=stringency, ndates=ndates, nhospitals=nhospitals;
+    patients=patients, 
+    staff=staff, 
+    vaccinated=vaccinated, 
+    community=community, 
+    vpd=vpd, 
+    psb=psb, 
+    stringency=stringency, 
+    ndates=ndates, 
+    nhospitals=nhospitals;
     psiprior=0,
 )
     return Pigeons.TuringLogPotential(
         fitmodel(
-            newstaff, patients, staff, vaccinated, community, 
-            vpd, psb, stringency, ndates, nhospitals;
+            patients, staff, vaccinated, community, vpd, psb, stringency, ndates, nhospitals;
             psiprior=0
         )
     )
@@ -36,6 +42,7 @@ function Pigeons.initialization(target::FitsimmodelType, rng::AbstractRNG, ::Int
     Pigeons.update_state!(result, :α7, 1, 0.1)
     Pigeons.update_state!(result, :α8, 1, 0.1)
     Pigeons.update_state!(result, :ω, 1, 0.02)
+    Pigeons.update_state!(result, :θ, 1, 2/7)
     Pigeons.update_state!(result, :sigma2, 1, 0.05)
 
     return result
@@ -43,12 +50,11 @@ end
 
 fitted_pt = pigeons( ;
     target=fitsimmodel_target(
-        newstaff, patients, staff, vaccinated, community, 
-        vpd, psb, stringency, ndates, nhospitals;
+        patients, staff, vaccinated, community, vpd, psb, stringency, ndates, nhospitals;
         psiprior=0,
     ),
     n_rounds=0,
-    n_chains=5,
+    n_chains=4,
     multithreaded=true,
     record=[ traces; record_default() ],
     seed=(1000 + id),
@@ -71,7 +77,7 @@ for i ∈ 1:n_rounds
             "chain" => new_chains, 
             "pt" => new_pt, 
             "n_rounds" => i, 
-            "n_chains" => 5,
+            "n_chains" => 4,
         )
         safesave(datadir("sims", filename), resultdict)
     end

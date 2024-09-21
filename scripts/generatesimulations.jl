@@ -104,7 +104,7 @@ simulations = let
         vpd = sample(finaldata.VolumePerBed) 
         psb = sample(finaldata.ProportionSingleBeds) 
         
-        u0 = zeros(Int, 15)
+        u0 = zeros(Int, 17)
         u0[1] = patienttotal 
         u0[7] = stafftotal
     
@@ -120,33 +120,36 @@ simulations = let
             0.01,  # rate of immune waning 
             rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
             rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
-            modelcommunitytransmissiontohcw  # community force of infection  
+            modelcommunitytransmissiontohcw,  # community force of infection  
+            2/7  # daily proportion diagnosed
         )
         
-        hospital = stochasticwxyyzseiirrrs(u0, 1.0:831.0, p, communityvalues)
+        @unpack hospitaldiagnoses, hospitalvalues = stochasticwxyyzseiirrrs(
+            u0, 1.0:831.0, p, communityvalues
+        )
     
         df = DataFrame(
             :Code => [ "$h" for _ ∈ 1:831 ],
             :StringCodes => [ "$h" for _ ∈ 1:831 ],
             :Date => [ missing for _ ∈ 1:831 ],
-            :CovidBeds => [ sum(@view hospital[t, 3:5]) for t ∈ 1:831 ],
-            :AllBeds => [ sum(@view hospital[t, 1:6]) for t ∈ 1:831 ],
-            :StaffAbsences => [ sum(@view hospital[t, 9:10]) for t ∈ 1:831 ],
-            :StaffTotal => [ sum(@view hospital[t, 7:13]) for t ∈ 1:831 ],
+            :CovidBeds => [ sum(@view hospitalvalues[t, 3:5]) for t ∈ 1:831 ],
+            :AllBeds => [ sum(@view hospitalvalues[t, 1:6]) for t ∈ 1:831 ],
+            :StaffAbsences => hospitaldiagnoses,
+            :StaffTotal => [ sum(@view hospitalvalues[t, 7:14]) for t ∈ 1:831 ],
             :CovidPatients => [ 
-                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
                 for t ∈ 1:831 
             ],
             :CovidAbsences => [ 
-                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
                 for t ∈ 1:831 
             ],
             :PatientsProportion => [ 
-                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
                 for t ∈ 1:831 
             ],
             :StaffProportion => [ 
-                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
                 for t ∈ 1:831 
             ],
             :VolumePerBed => [ vpd for _ ∈ 1:831 ],
@@ -192,7 +195,7 @@ simulations = let
         vpd = sample(finaldata.VolumePerBed) 
         psb = sample(finaldata.ProportionSingleBeds) 
         
-        u0 = zeros(Int, 15)
+        u0 = zeros(Int, 17)
         u0[1] = patienttotal 
         u0[7] = stafftotal
         
@@ -208,33 +211,36 @@ simulations = let
             0.01,  # rate of immune waning 
             rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
             rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
-            modelcommunitytransmissiontohcw  # community force of infection  
+            modelcommunitytransmissiontohcw,  # community force of infection  
+            2/7  # daily proportion diagnosed
         )
         
-        hospital = stochasticwxyyzseiirrrs(u0, 1.0:831.0, p, communityvalues)
+        @unpack hospitaldiagnoses, hospitalvalues = stochasticwxyyzseiirrrs(
+            u0, 1.0:831.0, p, communityvalues
+        )
     
         df = DataFrame(
             :Code => [ "$h" for _ ∈ 1:831 ],
             :StringCodes => [ "$h" for _ ∈ 1:831 ],
             :Date => [ missing for _ ∈ 1:831 ],
-            :CovidBeds => [ sum(@view hospital[t, 3:5]) for t ∈ 1:831 ],
-            :AllBeds => [ sum(@view hospital[t, 1:6]) for t ∈ 1:831 ],
-            :StaffAbsences => [ sum(@view hospital[t, 9:10]) for t ∈ 1:831 ],
-            :StaffTotal => [ sum(@view hospital[t, 7:13]) for t ∈ 1:831 ],
+            :CovidBeds => [ sum(@view hospitalvalues[t, 3:5]) for t ∈ 1:831 ],
+            :AllBeds => [ sum(@view hospitalvalues[t, 1:6]) for t ∈ 1:831 ],
+            :StaffAbsences => hospitaldiagnoses,
+            :StaffTotal => [ sum(@view hospitalvalues[t, 7:14]) for t ∈ 1:831 ],
             :CovidPatients => [
-                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
                 for t ∈ 1:831 
             ],
             :CovidAbsences => [ 
-                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
                 for t ∈ 1:831 
             ],
             :PatientsProportion => [ 
-                sum(@view hospital[t, 3:5]) / sum(@view hospital[t, 1:6]) 
+                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
                 for t ∈ 1:831 
             ],
             :StaffProportion => [ 
-                sum(@view hospital[t, 9:10]) / sum(@view hospital[t, 7:13]) 
+                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
                 for t ∈ 1:831 
             ],
             :VolumePerBed => [ vpd for _ ∈ 1:831 ],

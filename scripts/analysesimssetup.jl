@@ -20,7 +20,7 @@ if length(ARGS) == 3
     sim = ARGS[3]
 else
     id = 1 
-    n_rounds = 10
+    n_rounds = 5
     sim = "unboostedsimulation"
 end
 

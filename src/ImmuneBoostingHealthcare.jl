@@ -14,7 +14,7 @@ include("plotting.jl")
 
 export 
     # structs.jl
-    SEIIRRRSp, WXYYZSEIIRRRSp,
+    AbstractParameters, HCWSEIIRRRp, SEIIRRRSp, WXYYZSEIIRRRSp,
     # consts.jl
     
     # simulations.jl
@@ -22,9 +22,10 @@ export
     # processdata.jl
     insertproportions!,
     # analysis.jl
-    calculatebetas, countdates, counthospitals, datamatrices, fitmodel, 
-    hospitalconditionmatrices, loadchainsdf, predictinfections, predictinfections!, 
-    summarizepredictedinfections
+    calculatebetah, calculatebetahs, calculatebetap, calculatebetaps, calculatebetas, 
+    calculatelambdac, calculatelambdacs, countdates, counthospitals, datamatrices, fitmodel, 
+    hcwseiirrr, hcwseiirrr_isolating, hcwseiirrr_isolating!, hospitalconditionmatrices, 
+    loadchainsdf, predictdiagnoses, predicttotaldiagnoses
     # plotting.jld2
     
 

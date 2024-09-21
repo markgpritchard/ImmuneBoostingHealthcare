@@ -35,161 +35,102 @@ function hospitalconditionmatrices(data)
     return @ntuple vpd=(_tdf.VolumePerBed).^(1/3) psb=_tdf.ProportionSingleBeds 
 end
 
-function predictinfections(
-    βp::T, βh::T, βc::T, ψ::T, ω::T, patients, staff, community, vaccinated; 
-    immunevectorlength=10,
-) where T 
-    ndates = length(βc)
-    nhospitals = length(βp)
-    @assert nhospitals == length(βh)
-
-    predictedinfections = zeros(T, ndates, nhospitals)
-    immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
-
-    predictinfections!(
-        predictedinfections, immunevector, ndates, nhospitals, 
-        βp, βh, βc, ψ, ω, patients, staff, community, vaccinated
-    )
-
-    return predictedinfections
-end
-
-function predictinfections(
-    df::DataFrame, patients, staff, community, vaccinated, vpd, psb, stringency; 
-    immunevectorlength=10, inds=automatic, ψ=automatic,
+function hcwseiirrr(
+    u, p::HCWSEIIRRRp, t::Integer, λc::Number, patients::Number, vaccinated::Number
 )
-    return _predictinfections(
-        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, inds; 
-        immunevectorlength
-    )
+    S, E, I, I′1, I′2, I′3, I′4, I′5, I′6, I′7, I′8, I′9, I′10, R1, R2, R3 = u 
+
+    λ = 1 - exp(-(λc + p.βp * patients + p.βh * I))
+    λψ = vaccinated + (1 - exp(-p.ψ * (λc + p.βp * patients + p.βh * I))) * (1 - vaccinated)
+
+    new_u = [
+        S * (1 - λ - vaccinated * (1 - λ)) + R3 * 3 * p.ω * (1 - λψ),  # S 
+        E * (1 - p.η) + λ * S,  # E 
+        I * (1 - p.θ - p.γ * (1 - p.θ)) + p.η * E,  # I 
+        p.θ * I,  # I′1
+        I′1,  # I′2
+        I′2,  # I′3
+        I′3,  # I′4
+        I′4,  # I′5
+        I′5,  # I′6
+        I′6,  # I′7
+        I′7,  # I′8
+        I′8,  # I′9
+        I′9,  # I′10
+        # R1:
+        R1 * (1 - 3 * p.ω * (1 - λψ)) +  # previous R1 that has not waned
+            S * (vaccinated * (1 - λ)) +   # vaccinated from S 
+            p.γ * (1 - p.θ) * I +  # recovered 
+            I′10 +  # ended isolation 
+            λψ * (R2 + R3),  # boosted by exposure or vaccination from R2 and R3 
+        R2 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R1 * 3 * p.ω * (1 - λψ),  # R3
+        R3 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R2 * 3 * p.ω * (1 - λψ),  # R3
+    ]
+    return new_u
 end
 
-function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, ::Automatic; 
-    immunevectorlength
+function hcwseiirrr_isolating(
+    u0, p, tspan::AbstractVector{<:Integer}, λc, patients, vaccinated, j=1
 )
-    allinds = axes(df, 1)
-    return _predictinfections(
-        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, allinds; 
-        immunevectorlength
-    )
+    isolating = zeros(Float64, length(tspan))
+    hcwseiirrr_isolating!(isolating, u0, p, tspan, λc, patients, vaccinated, j)
+    return isolating
 end
 
-function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, ind::Number; 
-    immunevectorlength
+function hcwseiirrr_isolating!(
+    isolating, u0::AbstractVector, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
+    λc::AbstractVector, patients::AbstractVector, vaccinated::AbstractVector, j
 )
-    allinds = [ ind ]
-    return _predictinfections(
-        df, patients, staff, community, vaccinated, vpd, psb, stringency, ψ, allinds; 
-        immunevectorlength
-    )
-end
-
-function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, 
-    ::Automatic, inds::AbstractVector; 
-    immunevectorlength
-)
-    ndates, nhospitals = size(patients)
-    nsamples = length(inds)
-    predictedinfections = zeros(ndates, nhospitals, nsamples)
-    immunevector = SizedVector{immunevectorlength}(zeros(immunevectorlength))
-
-    @unpack βp, βh, βc = calculatebetas(df, vpd, psb, stringency)
-
-    for (i, ind) ∈ enumerate(inds)
-        predictinfections!(
-            @view(predictedinfections[:, :, i]), immunevector, 
-            ndates, nhospitals, 
-            βp[ind], βh[ind], βc[ind], getproperty(df, :ψ)[ind], getproperty(df, :ω)[ind], 
-            patients, staff, community, vaccinated
-        )
-    end
-
-    return predictedinfections
-end
-
-function _predictinfections(
-    df, patients, staff, community, vaccinated, vpd, psb, stringency, 
-    ψ::Number, inds::AbstractVector; 
-    immunevectorlength
-)
-    ndates, nhospitals = size(patients)
-    nsamples = length(inds)
-    predictedinfections = zeros(ndates, nhospitals, nsamples)
-    immunevector = SizedVector{immunevectorlength}(zeros(immunevectorlength))
-
-    @unpack βp, βh, βc = calculatebetas(df, vpd, psb, stringency)
-
-    for (i, ind) ∈ enumerate(inds)
-        predictinfections!(
-            @view(predictedinfections[:, :, i]), immunevector, 
-            ndates, nhospitals, 
-            βp[ind], βh[ind], βc[ind], ψ, getproperty(df, :ω)[ind], 
-            patients, staff, community, vaccinated
-        )
-    end
-
-    return predictedinfections
-end
-
-function predictinfections!(
-    predictedinfections::AbstractMatrix{T}, immunevector::SizedVector{N, T}, 
-    βp, βh, βc, ψ, ω, patients, staff, community, vaccinated
-) where {N, T}
-    ndates = length(βc)
-    nhospitals = length(βp)
-    @assert nhospitals == length(βh)
-
-    predictinfections!(
-        predictedinfections, immunevector, ndates, nhospitals, 
-        βp, βh, βc, ψ, ω, patients, staff, community, vaccinated
-    )
-end
-
-function predictinfections!(
-    predictedinfections::AbstractMatrix{T}, immunevector::SizedVector{N, T}, 
-    ndates, nhospitals, βp, βh, βc, ψ, ω, patients, staff, community, vaccinated
-) where {N, T}
-    foi = zeros(T, ndates, nhospitals)
-    for t ∈ axes(foi, 1), j ∈ axes(foi, 2)
-        foi[t, j] = βp[j] * patients[t, j] + βh[j]* staff[t, j] + βc[t] * community[t]
-    end
-
-    predictinfections!(
-        predictedinfections, immunevector, ndates, nhospitals, foi, ψ, ω, vaccinated
-    )
-end
-
-function predictinfections!(
-    predictedinfections::AbstractMatrix{T}, immunevector::SizedVector{N, T}, 
-    ndates, nhospitals, foi, ψ, ω, vaccinated
-) where {N, T}
-    for j ∈ 1:nhospitals
-        @assert predictedinfections[1, j] == 0
-        for x ∈ 1:N  # reset immunevector
-            immunevector[x] = zero(T)
-        end
-        for t ∈ 2:ndates  
-            v = vaccinated[(t - 1), j]
-            immune10 = predictedinfections[(t - 1), j] + 
-                v * (1 - sum(immunevector) - predictedinfections[(t - 1), j])
-            # probability of boosting from natural immune boosting plus vaccination
-            pb = (1 - exp(-ψ * foi[(t - 1), j])) * (1 - v) + v  
-            for x ∈ 1:N-1
-                immune10 += pb * immunevector[x]
-                immunevector[x] += -(pb + N * ω) * immunevector[x] + 
-                    N * ω * (1 - pb) * immunevector[x+1]
-            end
-            immunevector[N] += -(N * ω * (1 - pb)) * immunevector[N] + immune10
-            predictedinfections[t, j] = (1 - sum(immunevector)) * (1 - exp(-foi[(t - 1), j]))
-        end
+    u = u0 
+    isolating[1] = sum(@view u[4:13])
+    for t ∈ tspan 
+        u = hcwseiirrr(u, p, t, λc[t], patients[t], vaccinated[t])
+        @assert sum(u) ≈ 1 "sum(u)=$(sum(u))≠1, u=$u, p=$p, t=$t"
+        isolating[t] = sum(@view u[4:13])
     end
 end
 
-@model function fitmodel(  # hard-coded for 3 levels of waning immunity
-    newstaff, patients, staff, vaccinated, community, 
+function hcwseiirrr_isolating!(
+    isolating, ::Automatic, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
+    λc::AbstractVector, patients::AbstractVector, vaccinated::AbstractVector, j
+)
+    u = zeros(16)
+    u[1] = 1.0
+    isolating[1] = sum(@view u[4:13])
+    for t ∈ tspan 
+        u = hcwseiirrr(u, p, t, λc[t], patients[t], vaccinated[t])
+        @assert sum(u) ≈ 1 "sum(u)=$(sum(u))≠1, u=$u, p=$p, t=$t"
+        isolating[t] = sum(@view u[4:13])
+    end
+end
+
+function hcwseiirrr_isolating!(
+    isolating, u0, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
+    λc, patients, vaccinated::AbstractMatrix, j
+)
+    hcwseiirrr_isolating!(isolating, u0, p, tspan, λc, patients, view(vaccinated, :, j), j)
+end
+
+function hcwseiirrr_isolating!(
+    isolating, u0, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
+    λc, patients::AbstractMatrix, vaccinated::AbstractVector, j
+)
+    hcwseiirrr_isolating!(isolating, u0, p, tspan, λc, view(patients, :, j), vaccinated, j)
+end
+
+function hcwseiirrr_isolating!(
+    isolating, u0, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
+    λc::AbstractMatrix, patients::AbstractVector, vaccinated::AbstractVector, j
+)
+    hcwseiirrr_isolating!(isolating, u0, p, tspan, view(λc, :, j), patients, vaccinated, j)
+end
+
+function hcwseiirrr_isolating!(isolating, u0, p, tspan, λc, patients, vaccinated)
+    hcwseiirrr_isolating!(isolating, u0, p, tspan, λc, patients, vaccinated, 1)
+end
+
+@model function fitmodel( 
+    patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
     alpha1prior=truncated(Normal(0.2, 1), -1, 10),
     alpha2prior=Normal(0, 0.1),
@@ -200,7 +141,8 @@ end
     alpha7prior=truncated(Normal(0.2, 1), -1, 10),
     alpha8prior=truncated(Normal(0.1, 0.1), 0, 10),  # require greater stringency leads to less transmission
     omegaprior=Uniform(0, 0.33),
-    psiprior=Exponential(1),
+    psiprior=truncated(Exponential(1), 0, 1000),
+    thetaprior=Beta(1, 1),
     sigma2prior=Exponential(1),
 )
     α1 ~ alpha1prior
@@ -219,54 +161,39 @@ end
         ψ ~ psiprior
     end
 
+    θ ~ thetaprior
     sigma2 ~ sigma2prior
 
     T = typeof(α1)
+   # u0 = zeros(16)
+   # u0[1] = 1.0
+    isolating = zeros(Float64, ndates)
 
     λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
     
     for j ∈ 1:nhospitals
-        predictedinfections = 0.0
-        r1 = zero(T)
-        r2 = zero(T)
-        r3 = zero(T)
-        λp = max(zero(T), α1 + α2 * vpd[j] + α3 * psb[j]) .* patients[:, j]
-        βh = max(zero(T), α4 + α5 * vpd[j] + α6 * psb[j]) 
-        for t ∈ 2:ndates 
-            foi = λc[t] + λp[j] + βh * predictedinfections
-            ξ = 1 - exp(-ψ * foi)
-            predictedinfections = max(
-                zero(T),  # numerical errors causing slightly negative values here lead to failure
-                (1 - predictedinfections - r1 - r2 - r3) * (1 - exp(-foi))
-            )
-            newr1 = predictedinfections + 
-                vaccinated[(t - 1), j] + 
-                ξ * (r2 + r3) + 
-                (1 - (1 - ξ) * 3 * ω) * r1 
-            newr2 = (1 - ξ) * 3 * ω * r1 + (1 - (1 - ξ) * 3 * ω - ξ) * r2
-            newr3 = (1 - ξ) * 3 * ω * r2 + (1 - (1 - ξ) * 3 * ω - ξ) * r3 
-            r1 = newr1 
-            r2 = newr2 
-            r3 = newr3
-            #if j == 59
-            #    println("t=$t, λc[$t]=$(λc[$t]), λp[$j]=$(λp[$j]), βh=$βh, foi=$foi, ξ=$ξ, r1=$r1, r2=$r2, r3=$r3, predictedinfections=$predictedinfections, newstaff[$t, $j]=$(newstaff[t, j]), logpdf=$(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))")
-            #end
-            #Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
-            #newstaff[t, j] ~ Normal(predictedinfections, sigma2)
-            #if isnan(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))
-            #    #println("t=$t, λc[$t]=$(λc[$t]), λp[$j]=$(λp[$j]), βh=$βh, foi=$foi, ξ=$ξ, r1=$r1, r2=$r2, r3=$r3, predictedinfections=$predictedinfections, newstaff[$t, $j]=$(newstaff[t, j]), logpdf=$(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))")
-            #    @error "stop now"
-            #end
-            Turing.@addlogprob! logpdf(Normal(predictedinfections, sigma2), newstaff[t, j])
+        p = HCWSEIIRRRp(
+            max(zero(T), α4 + α5 * vpd[j] + α6 * psb[j]),  # βh 
+            max(zero(T), α1 + α2 * vpd[j] + α3 * psb[j]),  # βp 
+            0.5,  # η 
+            0.2,  # γ 
+            ψ,
+            ω,  
+            θ
+        )
+        hcwseiirrr_isolating!(isolating, automatic, p, 1:ndates, λc, patients, vaccinated, j)
+
+        for t ∈ 1:ndates
+            Turing.@addlogprob! logpdf(Normal(isolating[t], sigma2), staff[t, j])
         end
     end
 end
 
 function loadchainsdf(filenamestart; psiprior=Exponential(1), kwargs...)
-    return _loadchainsdf(filenamestart, psiprior; kwargs...)
+    return loadchainsdf(filenamestart, psiprior; kwargs...)
 end
 
-function _loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
+function loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
     df = DataFrame(
         :iteration => Int[ ],
         :chain => Int[ ],
@@ -280,6 +207,7 @@ function _loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
         :α8 => Float64[ ],
         :ω => Float64[ ],
         :ψ => Float64[ ],
+        :θ => Float64[ ],
         :sigma2 => Float64[ ],
         :log_density => Float64[ ],
     )
@@ -300,7 +228,7 @@ function _loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
     return df
 end
 
-function _loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
+function loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
     df = DataFrame(
         :iteration => Int[ ],
         :chain => Int[ ],
@@ -313,6 +241,7 @@ function _loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
         :α7 => Float64[ ],
         :α8 => Float64[ ],
         :ω => Float64[ ],
+        :θ => Float64[ ],
         :sigma2 => Float64[ ],
         :log_density => Float64[ ],
     )
@@ -334,93 +263,134 @@ function _loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
     return df
 end
 
-function _calculatebetap(α1::T, α2::T, α3::T, vpd, psb) where T
-    return [ max(zero(T), α1 + α2 * v + α3 * p) for (v, p) ∈ zip(vpd, psb) ]
-end
-
-function _calculatebetap(df::DataFrame, vpd, psb) 
-    return [
-        _calculatebetap(
-            getproperty(df, :α1)[i], getproperty(df, :α2)[i], getproperty(df, :α3)[i], 
-            vpd, psb
-        )
-        for i ∈ axes(df, 1)
-    ]
-end
-
-function _calculatebetah(α4::T, α5::T, α6::T, vpd, psb) where T
-    return [ max(zero(T), α4 + α5 * v + α6 * p) for (v, p) ∈ zip(vpd, psb) ]
-end
-
-function _calculatebetah(df::DataFrame, vpd, psb) 
-    return [
-        _calculatebetah(
-            getproperty(df, :α4)[i], getproperty(df, :α5)[i], getproperty(df, :α6)[i], 
-            vpd, psb
-        )
-        for i ∈ axes(df, 1)
-    ]
-end
-
-function _calculatebetac(α7::T, α8::T, stringency) where T
-    return [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ]
-end
-
-function _calculatebetac(df::DataFrame, stringency) 
-    return [
-        _calculatebetac(getproperty(df, :α7)[i], getproperty(df, :α8)[i], stringency)
-        for i ∈ axes(df, 1)
-    ]
-end
-
-function calculatebetas(df, vpd, psb, stringency)
-    βp = _calculatebetap(df, vpd, psb)
-    βh = _calculatebetah(df, vpd, psb)
-    βc = _calculatebetac(df, stringency)
-    return @ntuple βp βh βc
-end
-
-function summarizepredictedinfections(
-    predictedinfections::Array{<:Real, 3}; 
-    cri=[ 0.05, 0.95 ],
+function predictdiagnoses(
+    df::DataFrame, psi, 
+    patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
 )
-    return _summarizepredictedinfections(predictedinfections, cri)
+    diagnoses = zeros(Float64, ndates, nhospitals, size(df, 1))
+    for i ∈ axes(df, 1)
+        λc = [ 
+            max(zero(Float64), df.α7[i] + df.α8[i] * (100 - s)) 
+            for s ∈ stringency 
+        ] .* community
+        for j ∈ 1:nhospitals
+            p = HCWSEIIRRRp(
+                max(zero(Float64), df.α4[i] + df.α5[i] * vpd[j] + df.α6[i] * psb[j]),  # βh 
+                max(zero(Float64), df.α1[i] + df.α2[i] * vpd[j] + df.α3[i] * psb[j]),  # βp 
+                0.5,  # η 
+                0.2,  # γ 
+                _predictdiagnosespsi(psi, df, i),
+                df.ω[i],  
+                df.θ[i]
+            )
+            hcwseiirrr_isolating!(
+                view(diagnoses, :, j, i), automatic, p, 1:ndates, 
+                λc, patients, vaccinated, j
+            )
+        end
+    end
+    return diagnoses
 end
 
-function summarizepredictedinfections(
-    df::DataFrame, args...; 
-    cri=[ 0.05, 0.5, 0.95 ], kwargs...
+function predictdiagnoses(
+    df::DataFrame, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
 )
-    predictedinfections = predictinfections(df, args...; kwargs...) 
-    return _summarizepredictedinfections(predictedinfections, cri)
+    return predictdiagnoses(
+        df, automatic, 
+        patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    )
 end
 
-function _summarizepredictedinfections(predictedinfections, cri::Number)
-    @assert cri <= 1 
-    lcri = (1 - cri) / 2
-    ucri = 1 - lcri 
-    return _summarizepredictedinfections(predictedinfections, [ lcr, 0.5, ucri ])
+_predictdiagnosespsi(psi::Number, ::Any, ::Any) = psi
+_predictdiagnosespsi(::Automatic, df, i) = df.ψ[i]
+
+function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ))
+    predicteddiagnoses = predictdiagnoses(args...)
+    totaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2), size(predicteddiagnoses, 3))
+    mediantotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
+    lcitotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
+    ucitotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
+    for i ∈ axes(predicteddiagnoses, 2)
+        for j ∈ axes(predicteddiagnoses, 3)
+            totaldiagnoses[i, j] = sum(@view predicteddiagnoses[:, i, j]) / 10
+        end
+        mediantotaldiagnoses[i] = quantile(totaldiagnoses[i, :], 0.5)
+        lcitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[1])
+        ucitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[2])
+    end
+    return @ntuple totaldiagnoses mediantotaldiagnoses lcitotaldiagnoses ucitotaldiagnoses
 end
 
-function _summarizepredictedinfections(predictedinfections, cri)
-    ndates, nhospitals, nsamples = size(predictedinfections)      
-    totals = zeros(nsamples, nhospitals)
-    means = zeros(nhospitals)
-    lcris = zeros(nhospitals)
-    medians = zeros(nhospitals)
-    ucris = zeros(nhospitals)
+function calculatebetah(df, vpd, psb, i, j) 
+    return max(zero(Float64), df.α4[i] + df.α5[i] * vpd[j] + df.α6[i] * psb[j])
+end
 
-    for i ∈ axes(totals, 2), j ∈ axes(totals, 1)
-        totals[j, i] = sum(@view predictedinfections[:, i, j])
+function calculatebetap(df, vpd, psb, i, j) 
+    return max(zero(Float64), df.α1[i] + df.α2[i] * vpd[j] + df.α3[i] * psb[j])
+end
+
+function calculatelambdac(df, stringency, community, i)
+    λc = [ 
+        max(zero(Float64), df.α7[i] + df.α8[i] * (100 - s)) 
+        for s ∈ stringency 
+    ] .* community
+    return λc
+end
+
+function calculatebetahs(df, vpd, psb, nhospitals; cri=( 0.05, 0.95 )) 
+    medianbetah = zeros(Float64, nhospitals)
+    lcibetah = zeros(Float64, nhospitals)
+    ucibetah = zeros(Float64, nhospitals)
+
+    for j ∈ 1:nhospitals
+        betas = [ calculatebetah(df, vpd, psb, i, j) for i ∈ axes(df, 1) ]
+        medianbetah[j] = quantile(betas, 0.5)
+        lcibetah[j] = quantile(betas, cri[1])
+        ucibetah[j] = quantile(betas, cri[2])
     end
 
-    for i ∈ 1:nhospitals
-        means[i] = mean(totals[:, i])
-        lcri, median, ucri = quantile(totals[:, i], cri)
-        lcris[i] = lcri
-        medians[i] = median
-        ucris[i] = ucri
+    return @ntuple medianbetah lcibetah ucibetah
+end
+
+function calculatebetaps(df, vpd, psb, nhospitals; cri=( 0.05, 0.95 )) 
+    medianbetap = zeros(Float64, nhospitals)
+    lcibetap = zeros(Float64, nhospitals)
+    ucibetap = zeros(Float64, nhospitals)
+
+    for j ∈ 1:nhospitals
+        betas = [ calculatebetap(df, vpd, psb, i, j) for i ∈ axes(df, 1) ]
+        medianbetap[j] = quantile(betas, 0.5)
+        lcibetap[j] = quantile(betas, cri[1])
+        ucibetap[j] = quantile(betas, cri[2])
     end
 
-    return @ntuple totals means lcris medians ucris
+    return @ntuple medianbetap lcibetap ucibetap
+end
+
+function calculatelambdacs(df, stringency, community; cri=( 0.05, 0.95 )) 
+    medianlambdac = zeros(Float64, length(community))
+    lcilambdac = zeros(Float64, length(community)) 
+    ucilambdac = zeros(Float64, length(community))
+    alllambddas = [ calculatelambdac(df, stringency, community, i) for i ∈ axes(df, 1) ]
+
+    for t ∈ axes(community, 1)
+        λ = [ alllambddas[i][t] for i ∈ axes(df, 1) ]
+        medianlambdac[t] = quantile(λ, 0.5)
+        lcilambdac[t] = quantile(λ, cri[1])
+        ucilambdac[t] = quantile(λ, cri[2])
+    end
+
+    return @ntuple medianlambdac lcilambdac ucilambdac
+end
+
+function calculatebetas(df, vpd, psb, nhospitals; kwargs...)
+    @unpack medianbetah, lcibetah, ucibetah = calculatebetahs(
+        df, vpd, psb, nhospitals; 
+        kwargs...
+    ) 
+    @unpack medianbetap, lcibetap, ucibetap = calculatebetaps(
+        df, vpd, psb, nhospitals; 
+        kwargs...
+    ) 
+    @ntuple medianbetah lcibetah ucibetah medianbetap lcibetap ucibetap 
 end
