@@ -292,3 +292,61 @@ linkyaxes!(axs1[1], axs1[2])
 fig
 
 
+
+##############################################################################################
+
+# hospital RCD #25
+
+using StaticArrays
+
+idnumber = 80
+id = unique(finaldata.StringCodes)[idnumber]
+
+h20data = filter(:StringCodes => x -> x == id, finaldata)
+
+@unpack βp, βh, βc = calculatebetas(
+    coviddf, 
+    h20data.VolumePerBed[1], 
+    h20data.ProportionSingleBeds[1], 
+    h20data.StringencyIndex_Average    
+)
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+scatter!(ax, h20data.CovidAbsences; color=:black, markersize=3)
+for i ∈ axes(coviddf, 1)
+    predictedinfections = zeros(ndates) 
+    immunevector = SizedVector{3}(zeros(Float64, 3)) 
+    for t ∈ 2:ndates 
+        foi = βc[i][t-1] * community[t-1] + βp[i][1] * h20data.PatientsProportion[t-1] + βh[i][1] * predictedinfections[t-1]
+        v = vaccinated[(t - 1), idnumber]
+        immune10 = predictedinfections[t-1] + v * (1 - sum(immunevector) - predictedinfections[t-1])
+        # probability of boosting from natural immune boosting plus vaccination
+        pb = (1 - exp(-coviddf.ψ[i] * foi)) * (1 - v) + v  
+        for x ∈ 1:2
+            immune10 += pb * immunevector[x]
+            immunevector[x] += -(pb + 2 * coviddf.ω[i]) * immunevector[x] + 
+                2 * coviddf.ω[i] * (1 - pb) * immunevector[x+1]
+        end
+        immunevector[2] += -(2 * coviddf.ω[i] * (1 - pb)) * 
+            immunevector[2] + 
+            immune10
+        predictedinfections[t] = (1 - sum(immunevector)) * (1 - exp(-foi))
+    end
+    lines!(ax, predictedinfections; color=( :blue, 0.1 ))
+end
+
+
+
+fig
+
+
+
+
+####
+
+fig, ax = lines([ 1 - exp(-x * 0) for x ∈ 0:0.01:2 ])
+lines!(ax, [ (1 - (1 - exp(-x)))^0 for x ∈ 0:0.01:2 ])
+
+
+fig

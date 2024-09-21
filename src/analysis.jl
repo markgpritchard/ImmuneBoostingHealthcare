@@ -32,7 +32,7 @@ end
 function hospitalconditionmatrices(data)
     _tdf = select(data, :Code, :VolumePerBed, :ProportionSingleBeds)
     unique!(_tdf)
-    return @ntuple vpd=(_tdf.VolumePerBed)^(1/3) psb=_tdf.ProportionSingleBeds 
+    return @ntuple vpd=(_tdf.VolumePerBed).^(1/3) psb=_tdf.ProportionSingleBeds 
 end
 
 function predictinfections(
@@ -188,7 +188,7 @@ function predictinfections!(
     end
 end
 
-@model function fitmodel(
+@model function fitmodel(  # hard-coded for 3 levels of waning immunity
     newstaff, patients, staff, vaccinated, community, 
     vpd, psb, stringency, ndates, nhospitals;
     alpha1prior=truncated(Normal(0.2, 1), -1, 10),
@@ -199,10 +199,9 @@ end
     alpha6prior=Normal(0, 1),
     alpha7prior=truncated(Normal(0.2, 1), -1, 10),
     alpha8prior=truncated(Normal(0.1, 0.1), 0, 10),  # require greater stringency leads to less transmission
-    omegaprior=Uniform(0, 0.1),
+    omegaprior=Uniform(0, 0.33),
     psiprior=Exponential(1),
     sigma2prior=Exponential(1),
-    immunevectorlength=3,
 )
     α1 ~ alpha1prior
     α2 ~ alpha2prior
@@ -224,34 +223,41 @@ end
 
     T = typeof(α1)
 
-    # levels of immunity
-    immunevector = SizedVector{immunevectorlength}(zeros(T, immunevectorlength))  
-
     λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
     
     for j ∈ 1:nhospitals
-        predictedinfections = 0
-        for x ∈ 1:immunevectorlength  # reset immunevector
-            immunevector[x] = zero(T)
-        end
+        predictedinfections = 0.0
+        r1 = zero(T)
+        r2 = zero(T)
+        r3 = zero(T)
         λp = max(zero(T), α1 + α2 * vpd[j] + α3 * psb[j]) .* patients[:, j]
         βh = max(zero(T), α4 + α5 * vpd[j] + α6 * psb[j]) 
         for t ∈ 2:ndates 
             foi = λc[t] + λp[j] + βh * predictedinfections
-            v = vaccinated[(t - 1), j]
-            immune10 = predictedinfections + v * (1 - sum(immunevector) - predictedinfections)
-            # probability of boosting from natural immune boosting plus vaccination
-            pb = (1 - exp(-ψ * foi)) * (1 - v) + v  
-            for x ∈ 1:immunevectorlength-1
-                immune10 += pb * immunevector[x]
-                immunevector[x] += -(pb + immunevectorlength * ω) * immunevector[x] + 
-                    immunevectorlength * ω * (1 - pb) * immunevector[x+1]
-            end
-            immunevector[immunevectorlength] += -(immunevectorlength * ω * (1 - pb)) * 
-                immunevector[immunevectorlength] + 
-                immune10
-            predictedinfections = (1 - sum(immunevector)) * (1 - exp(-foi))
-            Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
+            ξ = 1 - exp(-ψ * foi)
+            predictedinfections = max(
+                zero(T),  # numerical errors causing slightly negative values here lead to failure
+                (1 - predictedinfections - r1 - r2 - r3) * (1 - exp(-foi))
+            )
+            newr1 = predictedinfections + 
+                vaccinated[(t - 1), j] + 
+                ξ * (r2 + r3) + 
+                (1 - (1 - ξ) * 3 * ω) * r1 
+            newr2 = (1 - ξ) * 3 * ω * r1 + (1 - (1 - ξ) * 3 * ω - ξ) * r2
+            newr3 = (1 - ξ) * 3 * ω * r2 + (1 - (1 - ξ) * 3 * ω - ξ) * r3 
+            r1 = newr1 
+            r2 = newr2 
+            r3 = newr3
+            #if j == 59
+            #    println("t=$t, λc[$t]=$(λc[$t]), λp[$j]=$(λp[$j]), βh=$βh, foi=$foi, ξ=$ξ, r1=$r1, r2=$r2, r3=$r3, predictedinfections=$predictedinfections, newstaff[$t, $j]=$(newstaff[t, j]), logpdf=$(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))")
+            #end
+            #Turing.@addlogprob! logpdf(Normal(newstaff[t, j], sigma2), predictedinfections)
+            #newstaff[t, j] ~ Normal(predictedinfections, sigma2)
+            #if isnan(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))
+            #    #println("t=$t, λc[$t]=$(λc[$t]), λp[$j]=$(λp[$j]), βh=$βh, foi=$foi, ξ=$ξ, r1=$r1, r2=$r2, r3=$r3, predictedinfections=$predictedinfections, newstaff[$t, $j]=$(newstaff[t, j]), logpdf=$(logpdf(Normal(predictedinfections, sigma2), newstaff[t, j]))")
+            #    @error "stop now"
+            #end
+            Turing.@addlogprob! logpdf(Normal(predictedinfections, sigma2), newstaff[t, j])
         end
     end
 end
