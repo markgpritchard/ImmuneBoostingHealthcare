@@ -29,12 +29,12 @@ simulations = let
     end
     
     function modelvaccination(t)
-        if 300 < t < 330
-            return 0.02
-        elseif 400 < t < 430
-            return 0.0075
-        elseif 600 < t < 630
-            return 0.01
+        if 264 <= t < 469  # 8 December 2020 to 1 July 2021
+            return 0.004
+        elseif 531 <= t <= 621  # 1 September to 30 November 2021
+            return 0.004
+        elseif t >= 712  # from 1 March 2021
+            return 0.002
         else 
             return 0.0 
         end
@@ -116,7 +116,7 @@ simulations = let
             0.5,  # rate of leaving exposed compartments 
             0.2,  # rate of leaving infectious compartment
             0.0,  # strength of "force of boosting" relative to λ
-            modelvaccination, # healthcare worker vaccination rate
+            vaccinatestaff,  # healthcare worker vaccination rate
             0.01,  # rate of immune waning 
             rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
             rand(Uniform(0.1, 0.17)),  # discharge rate of infected  

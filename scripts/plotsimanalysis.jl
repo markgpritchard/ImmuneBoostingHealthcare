@@ -3,33 +3,32 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
+include("analysesimssetup.jl")
 include(srcdir("PlottingFunctions.jl"))
-
 using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
 
-
-if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-else 
-    include("loaddata.jl")
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-end
-
-if isfile(datadir("sims", "simulations.jld2"))
-    simulations = load(datadir("sims", "simulations.jld2"))
-else 
-    include("generatesimulations.jl")
-end
-
 ## Unboosted sims 
 
-#unboostedsimulation = simulations["unboostedsimulation"]
 @unpack unboostedsimulation = simulations
 
-nhospitals = counthospitals(unboostedsimulation)
-ndates = countdates(unboostedsimulation; dateid=:t)
 
+data = unboostedsimulation 
+
+
+
+function processoutputs(data; dateid=:Date)
+    nhospitals = counthospitals(unboostedsimulation)
+    ndates = countdates(unboostedsimulation; dateid)
+
+
+    return Dict(
+        :ndates => ndates,
+        :nhospitals => nhospitals,
+    )
+end
+
+unboostedoutput = processoutputs(unboostedsimulation; dateid=:t)
 # simulated numbers vaccinated  
 vaccinated = let
     vaccinated = zeros(ndates, nhospitals)
@@ -39,14 +38,86 @@ vaccinated = let
     vaccinated
 end
 
+
 @unpack newstaff, patients, staff = datamatrices(unboostedsimulation, ndates, nhospitals)
 @unpack vpd, psb = hospitalconditionmatrices(unboostedsimulation)
 
 stringency = finaldata.StringencyIndex_Average[1:ndates]
-community = unboostedsimulation.CommunityCases[1:ndates] ./ 56_000_000
+community = unboostedsimulation.weeklycases[1:ndates] ./ 56_000_000
 
 unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation")
 plotchains(unboosteddf)
+
+function chainoutputs(df, patients::Matrix, vaccinated, community, vpd::Vector, psb::Vector, stringency, ndates, nhospitals)
+    @unpack totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses = predicttotaldiagnoses(
+        df, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    )
+    @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
+        df, vpd, psb, nhospitals
+    )
+    @unpack medianlambdac, lcilambdac, ucilambdac = calculatelambdacs(
+        df, stringency, community
+    ) 
+    return (
+        totaldiagnoses=totaldiagnoses, 
+        mediantotaldiagnoses=mediantotaldiagnoses, 
+        lcitotaldiagnoses=lcitotaldiagnoses, 
+        ucitotaldiagnoses=ucitotaldiagnoses,
+        medianbetah=medianbetah, 
+        lcibetah=lcibetah, 
+        ucibetah=ucibetah, 
+        medianbetap=medianbetap, 
+        lcibetap=lcibetap, 
+        ucibetap=ucibetap,
+        medianlambdac=medianlambdac, 
+        lcilambdac=lcilambdac, 
+        ucilambdac=ucilambdac,
+    )
+end
+
+
+function chainoutputs(df, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals)
+    @unpack totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses = predicttotaldiagnoses(
+        df, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    )
+    @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
+        df, vpd, psb, nhospitals
+    )
+    @unpack medianlambdac, lcilambdac, ucilambdac = calculatelambdacs(
+        df, stringency, community
+    ) 
+    return (
+        totaldiagnoses=totaldiagnoses, 
+        mediantotaldiagnoses=mediantotaldiagnoses, 
+        lcitotaldiagnoses=lcitotaldiagnoses, 
+        ucitotaldiagnoses=ucitotaldiagnoses,
+        medianbetah=medianbetah, 
+        lcibetah=lcibetah, 
+        ucibetah=ucibetah, 
+        medianbetap=medianbetap, 
+        lcibetap=lcibetap, 
+        ucibetap=ucibetap,
+        medianlambdac=medianlambdac, 
+        lcilambdac=lcilambdac, 
+        ucilambdac=ucilambdac,
+    )
+end
+
+
+
+
+
+
+predicteddiagnoses = predicttotaldiagnoses(
+    unboosteddf, 
+    patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+)
+priorsamplesbetas = calculatebetas(priorsamplesdf, vpd, psb, nhospitals)
+priorsampleslambdacs = calculatelambdacs(priorsamplesdf, stringency, community) 
+
+
+
+
 
 @unpack βp, βh, βc = calculatebetas(unboosteddf, vpd, psb, stringency)
 

@@ -394,3 +394,8 @@ function calculatebetas(df, vpd, psb, nhospitals; kwargs...)
     ) 
     @ntuple medianbetah lcibetah ucibetah medianbetap lcibetap ucibetap 
 end
+
+
+
+
+

@@ -39,8 +39,12 @@ finaldata = let
         ]
     )
 
-    hospitalbeds = CSV.read(datadir("exp_raw", "GeneralAcuteOccupiedBedsbyTrust.csv"), DataFrame)
-    filter!(:TotalBedsAvailable => x -> !ismissing(x) && x != "" && x != " -   ", hospitalbeds)
+    hospitalbeds = CSV.read(
+        datadir("exp_raw", "GeneralAcuteOccupiedBedsbyTrust.csv"), DataFrame
+    )
+    filter!(
+        :TotalBedsAvailable => x -> !ismissing(x) && x != "" && x != " -   ", hospitalbeds
+    )
     for i ∈ axes(hospitalbeds, 1)
         hospitalbeds.OrgCode[i] = replace(hospitalbeds.OrgCode[i], ' ' => "")
     end
@@ -57,7 +61,9 @@ finaldata = let
     insertcols!(
         hospitaldata,
         :VolumePerBed => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
-        :ProportionSingleBeds => Vector{Union{Missing, Float64}}(missing, size(hospitaldata, 1)),
+        :ProportionSingleBeds => Vector{Union{Missing, Float64}}(
+            missing, size(hospitaldata, 1)
+        ),
     )
 
     select!(
@@ -67,7 +73,9 @@ finaldata = let
     )
 
     for trust ∈ unique(hospitaldata.TrustCode)
-        totalsinglebeds = sum(hospitaldata.SingleBedsEnsuite .* (hospitaldata.TrustCode .== trust))
+        totalsinglebeds = sum(
+            hospitaldata.SingleBedsEnsuite .* (hospitaldata.TrustCode .== trust)
+        )
         totalvolume = sum(hospitaldata.HeatedVolume .* (hospitaldata.TrustCode .== trust))
         inds = findall(x -> x == trust, hospitaldata.TrustCode)
         for i ∈ inds 
@@ -113,7 +121,9 @@ finaldata = let
 
     leftjoin!(coviddata, hospitaldata; on= :Code => :TrustCode )
 
-    communitydata = CSV.read(datadir("exp_raw", "OxCGRT_compact_subnational_v1.csv"), DataFrame)
+    communitydata = CSV.read(
+        datadir("exp_raw", "OxCGRT_compact_subnational_v1.csv"), DataFrame
+    )
 
     filter!(:RegionCode => x-> x == "UK_ENG", communitydata)
     insertcols!(
