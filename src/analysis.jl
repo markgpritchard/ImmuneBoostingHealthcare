@@ -318,7 +318,13 @@ function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ))
         lcitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[1])
         ucitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[2])
     end
-    return @ntuple totaldiagnoses mediantotaldiagnoses lcitotaldiagnoses ucitotaldiagnoses
+    return (
+        totaldiagnoses=totaldiagnoses, 
+        mediantotaldiagnoses=mediantotaldiagnoses, 
+        lcitotaldiagnoses=lcitotaldiagnoses, 
+        predicteddiagnoses=predicteddiagnoses, 
+        ucitotaldiagnoses=ucitotaldiagnoses,
+    )
 end
 
 function calculatebetah(df, vpd, psb, i, j) 
@@ -409,7 +415,7 @@ function processoutputs(
     @unpack vpd, psb = hospitalconditionmatrices(data)
     stringency = coviddata.StringencyIndex_Average[1:ndates]
     community = data.weeklycases[1:ndates] ./ 56_000_000
-    @unpack totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses = predicttotaldiagnoses(
+    boostpredictions = predicttotaldiagnoses(
         chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
     )
     noboostpredictions = predicttotaldiagnoses(
@@ -431,26 +437,28 @@ function processoutputs(
         :lcibetah => lcibetah,
         :lcibetap => lcibetap,
         :lcilambdac => lcilambdac,
-        :lcitotaldiagnoses => lcitotaldiagnoses,
+        :lcitotaldiagnoses => boostpredictions.lcitotaldiagnoses,
         :lcitotaldiagnosesnoboost => noboostpredictions.lcitotaldiagnoses,
         :medianbetah => medianbetah,
         :medianbetap => medianbetap,
         :medianlambdac => medianlambdac,
-        :mediantotaldiagnoses => mediantotaldiagnoses,
+        :mediantotaldiagnoses => boostpredictions.mediantotaldiagnoses,
         :mediantotaldiagnosesnoboost => noboostpredictions.mediantotaldiagnoses,
         :ndates => ndates,
         :nhospitals => nhospitals,
         :patients => patients, 
+        :predictdiagnoses => boostpredictions.predicteddiagnoses,
+        :predictdiagnosesnoboost => noboostpredictions.predicteddiagnoses,
         :psb => psb,
         :staff => staff,
         :stringency => stringency,
-        :totaldiagnoses => totaldiagnoses,
+        :totaldiagnoses => boostpredictions.totaldiagnoses,
         :totaldiagnosesnoboost => noboostpredictions.totaldiagnoses,
         :totalinfections => totalinfections,
         :ucibetah => ucibetah,
         :ucibetap => ucibetap,
         :ucilambdac => ucilambdac,
-        :ucitotaldiagnoses => ucitotaldiagnoses,
+        :ucitotaldiagnoses => boostpredictions.ucitotaldiagnoses,
         :ucitotaldiagnosesnoboost => noboostpredictions.ucitotaldiagnoses,
         :vpd => vpd,
     )

@@ -25,6 +25,11 @@ plotchains(unboostedoutputs[:chaindf_psi0])
 
 unboostedtotalsfig = plotoutputs(unboostedoutputs)
 
+plothospitaloutputs(unboostedoutputs)
+plothospitaloutputs(unboostedoutputs; firstplot=26)
+plothospitaloutputs(unboostedoutputs; firstplot=51)
+plothospitaloutputs(unboostedoutputs; firstplot=76)
+
 
 
 ## Boosted sims 
@@ -43,3 +48,8 @@ plotchains(boostedoutputs[:chaindf])
 plotchains(boostedoutputs[:chaindf_psi0])
 
 boostedtotalsfig = plotoutputs(boostedoutputs)
+
+plothospitaloutputs(boostedoutputs)
+plothospitaloutputs(boostedoutputs; firstplot=26)
+plothospitaloutputs(boostedoutputs; firstplot=51)
+plothospitaloutputs(boostedoutputs; firstplot=76)

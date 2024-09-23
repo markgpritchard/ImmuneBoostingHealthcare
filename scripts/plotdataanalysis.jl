@@ -29,9 +29,14 @@ scatter(dataoutputs[:totalinfections], vpd)
 scatter(dataoutputs[:totalinfections], psb)
 
 
-unboostedtotalsfig = plotoutputs(unboostedoutputs)
+datatotalsfig = plotoutputs(dataoutputs)
 
-
+plothospitaloutputs(dataoutputs)
+plothospitaloutputs(dataoutputs; firstplot=26)
+plothospitaloutputs(dataoutputs; firstplot=51)
+plothospitaloutputs(dataoutputs; firstplot=76)
+plothospitaloutputs(dataoutputs; firstplot=101)
+plothospitaloutputs(dataoutputs; firstplot=126)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
