@@ -7,7 +7,7 @@ module PlottingFunctions
 using DrWatson
 using CairoMakie, DataFrames
 
-export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, plotchains
+export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, plotchains, plotoutputs
 
 # Consistent colour scheme across plots 
 
@@ -48,6 +48,58 @@ function _processplotchains(data; logdensity="log_density")
     _plotnames_ind = findall(x -> x ∉ _NOPLOTNAMES, colnames)
     plotnames_ind = [ lp_ind; _plotnames_ind ]
     return @ntuple colnames plotnames_ind
+end
+
+function plotoutputs(outputs)
+    fig = Figure()
+    axs = [ Axis(fig[i, 1]) for i ∈ 1:3 ]
+    scatter!(
+        axs[1], 
+        outputs[:totalinfections], 
+        outputs[:mediantotaldiagnoses]; 
+        color=:blue, markersize=3
+    )
+    rangebars!(
+        axs[1], 
+        outputs[:totalinfections], 
+        outputs[:lcitotaldiagnoses], 
+        outputs[:ucitotaldiagnoses]; 
+        color=( :blue, 0.1 ),
+    )
+    lines!(
+        axs[1], 
+        [ extrema(outputs[:totalinfections])... ], 
+        [ extrema(outputs[:totalinfections])... ]
+    )
+    
+    scatter!(
+        axs[2], 
+        outputs[:totalinfections], 
+        outputs[:mediantotaldiagnosesnoboost]; 
+        color=:blue, markersize=3
+    )
+    rangebars!(
+        axs[2], 
+        outputs[:totalinfections], 
+        outputs[:lcitotaldiagnosesnoboost],
+        outputs[:ucitotaldiagnosesnoboost]; 
+        color=( :blue, 0.1 ),
+    )
+    lines!(
+        axs[2], 
+        [ extrema(outputs[:totalinfections])... ], 
+        [ extrema(outputs[:totalinfections])... ]
+    )
+    
+    scatter!(
+        axs[3], 
+        outputs[:totalinfections],
+        (outputs[:mediantotaldiagnoses] .- outputs[:mediantotaldiagnosesnoboost]) ./ 
+            outputs[:mediantotaldiagnoses]; 
+        color=:blue, markersize=3,
+    )
+        
+    return fig
 end
     
 end  # module PlottingFunctions 

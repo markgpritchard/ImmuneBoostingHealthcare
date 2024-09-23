@@ -395,7 +395,70 @@ function calculatebetas(df, vpd, psb, nhospitals; kwargs...)
     @ntuple medianbetah lcibetah ucibetah medianbetap lcibetap ucibetap 
 end
 
+function processoutputs(
+    data::DataFrame, coviddata::DataFrame, 
+    chaindf::DataFrame, chaindf_psi0::DataFrame, 
+    vaccinated::Vector; 
+    dateid=:Date
+)
+    # `data` can be the covid data or simulated data. `coviddata` must be the covid data
+    nhospitals = counthospitals(data)
+    ndates = countdates(data; dateid)
+    @unpack newstaff, patients, staff = datamatrices(data, ndates, nhospitals)
+    totalinfections = [ sum(@view newstaff[:, i]) for i ∈ 1:nhospitals ]
+    @unpack vpd, psb = hospitalconditionmatrices(data)
+    stringency = coviddata.StringencyIndex_Average[1:ndates]
+    community = data.weeklycases[1:ndates] ./ 56_000_000
+    @unpack totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses = predicttotaldiagnoses(
+        chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    )
+    noboostpredictions = predicttotaldiagnoses(
+        chaindf_psi0, 0, 
+        patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    )
+    @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
+        chaindf, vpd, psb, nhospitals
+    )
+    @unpack medianlambdac, lcilambdac, ucilambdac = calculatelambdacs(
+        chaindf, stringency, community
+    ) 
 
+    return Dict(
+        :chaindf => chaindf,
+        :chaindf_psi0 => chaindf_psi0,
+        :community => community,
+        :data => data,
+        :lcibetah => lcibetah,
+        :lcibetap => lcibetap,
+        :lcilambdac => lcilambdac,
+        :lcitotaldiagnoses => lcitotaldiagnoses,
+        :lcitotaldiagnosesnoboost => noboostpredictions.lcitotaldiagnoses,
+        :medianbetah => medianbetah,
+        :medianbetap => medianbetap,
+        :medianlambdac => medianlambdac,
+        :mediantotaldiagnoses => mediantotaldiagnoses,
+        :mediantotaldiagnosesnoboost => noboostpredictions.mediantotaldiagnoses,
+        :ndates => ndates,
+        :nhospitals => nhospitals,
+        :patients => patients, 
+        :psb => psb,
+        :staff => staff,
+        :stringency => stringency,
+        :totaldiagnoses => totaldiagnoses,
+        :totaldiagnosesnoboost => noboostpredictions.totaldiagnoses,
+        :totalinfections => totalinfections,
+        :ucibetah => ucibetah,
+        :ucibetap => ucibetap,
+        :ucilambdac => ucilambdac,
+        :ucitotaldiagnoses => ucitotaldiagnoses,
+        :ucitotaldiagnosesnoboost => noboostpredictions.ucitotaldiagnoses,
+        :vpd => vpd,
+    )
+end
 
-
-
+function processoutputs(
+    data::DataFrame, chaindf::DataFrame, chaindf_psi0::DataFrame, vaccinated::Vector; 
+    kwargs...
+)
+    return processoutputs(data, data, chaindf, chaindf_psi0, vaccinated; kwargs...)
+end

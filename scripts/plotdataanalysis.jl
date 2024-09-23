@@ -4,7 +4,6 @@ using DrWatson
 @quickactivate :ImmuneBoostingHealthcare
 
 include(srcdir("PlottingFunctions.jl"))
-
 using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
 
@@ -15,11 +14,25 @@ else
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 end
 
-if isfile(datadir("sims", "simulations.jld2"))
-    simulations = load(datadir("sims", "simulations.jld2"))
-else 
-    include("generatesimulations.jl")
+include("analysedatasetup.jl")
+
+dataoutputs = let 
+    datadf = loadchainsdf("fittedvalues_coviddata")
+    datadfpsi0 = loadchainsdf("fittedvalues_psi_0_coviddata", 0)
+    processoutputs(finaldata, datadf, datadfpsi0, vaccinated)    
 end
+
+plotchains(dataoutputs[:chaindf])
+plotchains(dataoutputs[:chaindf_psi0])
+
+scatter(dataoutputs[:totalinfections], vpd)
+scatter(dataoutputs[:totalinfections], psb)
+
+
+unboostedtotalsfig = plotoutputs(unboostedoutputs)
+
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Prior samples 

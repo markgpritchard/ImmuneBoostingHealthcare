@@ -156,10 +156,10 @@ function stochasticwxyyzseiirrrs(u0, trange, p, communityvalues)
             tind += 1
         end
     end
-    hospitaldiagnoses = [
+    hospitaldiagnoses = [  # NB hospitalvalues[:, 17] is cumulative diagnoses
         t <= 10 ? 
-            sum(@view hospitalvalues[1:t, 17]) : 
-            sum(@view hospitalvalues[(t - 9):t, 17])
+            hospitalvalues[t, 17] : 
+            hospitalvalues[t, 17] - hospitalvalues[t-10, 17]
         for t ∈ round.(Int, trange)
     ]
     return @ntuple hospitaldiagnoses hospitalvalues 

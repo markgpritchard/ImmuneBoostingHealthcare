@@ -24,6 +24,6 @@ export
     calculatebetah, calculatebetahs, calculatebetap, calculatebetaps, calculatebetas, 
     calculatelambdac, calculatelambdacs, countdates, counthospitals, datamatrices, fitmodel, 
     hcwseiirrr, hcwseiirrr_isolating, hcwseiirrr_isolating!, hospitalconditionmatrices, 
-    loadchainsdf, predictdiagnoses, predicttotaldiagnoses
+    loadchainsdf, predictdiagnoses, predicttotaldiagnoses, processoutputs
 
 end  # module ImmuneBoostingHealthcare
