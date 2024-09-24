@@ -140,7 +140,7 @@ end
     alpha6prior=Normal(0, 1),
     alpha7prior=truncated(Normal(0.2, 1), -1, 10),
     alpha8prior=truncated(Normal(0.1, 0.1), 0, 10),  # require greater stringency leads to less transmission
-    omegaprior=Uniform(0, 0.33),
+    omegaprior=truncated(Exponential(0.02), 0, 0.33),
     psiprior=truncated(Exponential(1), 0, 1000),
     thetaprior=Beta(1, 1),
     sigma2prior=Exponential(1),
@@ -181,6 +181,79 @@ end
             ω,  
             θ
         )
+        hcwseiirrr_isolating!(isolating, automatic, p, 1:ndates, λc, patients, vaccinated, j)
+
+        for t ∈ 1:ndates
+            Turing.@addlogprob! logpdf(Normal(isolating[t], sigma2), staff[t, j])
+        end
+    end
+end
+
+@model function fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
+    return βh ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
+end
+
+@model function fitbetap(α1, α2, α3, vpd, psb, psigma2, j) 
+    return βp ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
+end
+
+@model function fitmodelperhospital( 
+    patients, staff, vaccinated, community, 
+    vpd, psb, stringency, ndates, nhospitals;
+    alpha1prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha2prior=Normal(0, 0.1),
+    alpha3prior=Normal(0, 1),
+    alpha4prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha5prior=Normal(0, 0.1),
+    alpha6prior=Normal(0, 1),
+    alpha7prior=truncated(Normal(0.2, 1), -1, 10),
+    alpha8prior=truncated(Normal(0.1, 0.1), 0, 10),  # require greater stringency leads to less transmission
+    omegaprior=truncated(Exponential(0.02), 0, 0.33),
+    psiprior=truncated(Exponential(1), 0, 1000),
+    thetaprior=Beta(1, 1),
+    hsigma2prior=Exponential(1),
+    psigma2prior=Exponential(1),
+    sigma2prior=Exponential(1),
+    jseries=1:nhospitals,
+)
+    α1 ~ alpha1prior
+    α2 ~ alpha2prior
+    α3 ~ alpha3prior
+    α4 ~ alpha4prior
+    α5 ~ alpha5prior
+    α6 ~ alpha6prior
+    α7 ~ alpha7prior
+    α8 ~ alpha8prior
+    ω ~ omegaprior 
+
+    if psiprior isa Number 
+        ψ = psiprior 
+    else
+        ψ ~ psiprior
+    end
+
+    θ ~ thetaprior
+    hsigma2 ~ hsigma2prior
+    psigma2 ~ psigma2prior
+    sigma2 ~ sigma2prior
+
+    T = typeof(α1)
+   # u0 = zeros(16)
+   # u0[1] = 1.0
+    isolating = zeros(Float64, ndates)
+
+    λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
+    #betahs = zeros(T, nhospitals)
+    #betaps = zeros(T, nhospitals)
+    
+    for j ∈ jseries
+        @submodel prefix="hosp$(j)_" βh = fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
+        @submodel prefix="hosp$(j)_" βp = fitbetap(α4, α5, α6, vpd, psb, psigma2, j) 
+
+        #βh ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
+        #βp ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
+        p = HCWSEIIRRRp(βh, βp, 0.5, 0.2, ψ, ω, θ)
+        #println("$p")
         hcwseiirrr_isolating!(isolating, automatic, p, 1:ndates, λc, patients, vaccinated, j)
 
         for t ∈ 1:ndates
