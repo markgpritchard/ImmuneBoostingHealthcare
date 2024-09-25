@@ -11,6 +11,10 @@ end
 if length(ARGS) == 2 
     id = parse(Int, ARGS[1])
     n_rounds = parse(Int, ARGS[2])
+elseif length(ARGS) == 3
+    id = parse(Int, ARGS[1])
+    n_rounds = parse(Int, ARGS[2])
+    ω = parse(Float64, ARGS[3])
 else
     id = 1 
     n_rounds = 4

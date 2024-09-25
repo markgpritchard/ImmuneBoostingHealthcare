@@ -1,8 +1,8 @@
 #! /bin/bash
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=32
-#SBATCH --time=24:00:00
-#SBATCH --partition=medium
+#SBATCH --ntasks-per-node=48
+#SBATCH --time=12:00:00
+#SBATCH --partition=short
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=mark.pritchard@ndm.ox.ac.uk
 
@@ -13,8 +13,9 @@ n_rounds=12
 
 for n in {1..4}
 do
-        julia scripts/analysesims.jl "$n" "$n_rounds" "unboostedsimulation" &
+        julia scripts/analysedata_psi0.jl "$n" "$n_rounds" &
 	julia scripts/analysesims_psi0.jl "$n" "$n_rounds" "unboostedsimulation" &
+	julia scripts/analysesims_psi0.jl "$n" "$n_rounds" "boostedsimulation" &
 done
 
 wait

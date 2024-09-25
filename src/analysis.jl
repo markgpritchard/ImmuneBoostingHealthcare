@@ -153,7 +153,12 @@ end
     α6 ~ alpha6prior
     α7 ~ alpha7prior
     α8 ~ alpha8prior
-    ω ~ omegaprior 
+     
+    if omegaprior isa Number 
+        ω = omegaprior
+    else
+        ω ~ omegaprior
+    end
 
     if psiprior isa Number 
         ψ = psiprior 
@@ -224,7 +229,12 @@ end
     α6 ~ alpha6prior
     α7 ~ alpha7prior
     α8 ~ alpha8prior
-    ω ~ omegaprior 
+     
+    if omegaprior isa Number 
+        ω = omegaprior
+    else
+        ω ~ omegaprior
+    end
 
     if psiprior isa Number 
         ψ = psiprior 
