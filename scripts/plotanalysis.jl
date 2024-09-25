@@ -18,38 +18,42 @@ include("analysesimssetup.jl")
 unboostedoutputs = let 
     @unpack unboostedsimulation = simulations
     unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation")
-    unboostedpsi0df = loadchainsdf("fittedvalues_psi_0_unboostedsimulation", 0)
-    processoutputs(
-        unboostedsimulation, finaldata, unboosteddf, unboostedpsi0df, vaccinated; 
-        dateid=:t
-    )    
+    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
 end
 
 plotchains(unboostedoutputs[:chaindf])
-#plotchains(unboostedoutputs[:chaindf_psi0])
 
 unboostedtotalsfig = plotoutputs(unboostedoutputs)
 
+#=
 plothospitaloutputs(unboostedoutputs)
 plothospitaloutputs(unboostedoutputs; firstplot=26)
 plothospitaloutputs(unboostedoutputs; firstplot=51)
 plothospitaloutputs(unboostedoutputs; firstplot=76)
+=#
 
+unboostedoutputs_omega180 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsdf(
+        "fittedvalues_unboostedsimulation_omega_0.00556"; 
+        omega=0.00556
+    )
+    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
+end
+
+plotchains(unboostedoutputs_omega180[:chaindf])
+
+unboostedtotalsfig = plotoutputs(unboostedoutputs_omega180)
 
 ## Boosted sims 
 
 boostedoutputs = let 
     @unpack boostedsimulation = simulations
     boosteddf = loadchainsdf("fittedvalues_boostedsimulation")
-    boostedpsi0df = loadchainsdf("fittedvalues_psi_0_boostedsimulation", 0)
-    processoutputs(
-        boostedsimulation, finaldata, boosteddf, boostedpsi0df, vaccinated; 
-        dateid=:t
-    )    
+    processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
 end
 
 plotchains(boostedoutputs[:chaindf])
-#plotchains(boostedoutputs[:chaindf_psi0])
 
 boostedtotalsfig = plotoutputs(boostedoutputs)
 
@@ -57,6 +61,19 @@ plothospitaloutputs(boostedoutputs)
 plothospitaloutputs(boostedoutputs; firstplot=26)
 plothospitaloutputs(boostedoutputs; firstplot=51)
 plothospitaloutputs(boostedoutputs; firstplot=76)
+
+boostedoutputs_omega180 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsdf(
+        "fittedvalues_boostedsimulation_omega_0.00556"; 
+        omega=0.00556
+    )
+    processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
+end
+
+plotchains(boostedoutputs_omega180[:chaindf])
+
+boostedtotalsfig = plotoutputs(boostedoutputs_omega180)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plots from data
@@ -73,8 +90,7 @@ include("analysedatasetup.jl")
 
 dataoutputs = let 
     datadf = loadchainsdf("fittedvalues_coviddata")
-    datadfpsi0 = loadchainsdf("fittedvalues_psi_0_coviddata", 0)
-    processoutputs(finaldata, datadf, datadfpsi0, vaccinated)    
+    processoutputs(finaldata, datadf, vaccinated)    
 end
 
 plotchains(dataoutputs[:chaindf])
@@ -92,6 +108,15 @@ plothospitaloutputs(dataoutputs; firstplot=51)
 plothospitaloutputs(dataoutputs; firstplot=76)
 plothospitaloutputs(dataoutputs; firstplot=101)
 plothospitaloutputs(dataoutputs; firstplot=126)
+
+dataoutputs_omega180 = let 
+    datadf = loadchainsdf("fittedvalues_coviddata_omega_0.00556"; omega=0.00556)
+    processoutputs(finaldata, datadf, vaccinated)  
+end
+
+plotchains(dataoutputs_omega180[:chaindf])
+
+datatotals_omega180fig = plotoutputs(dataoutputs_omega180)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -53,51 +53,24 @@ end
 
 function plotoutputs(outputs)
     fig = Figure()
-    axs = [ Axis(fig[i, 1]) for i ∈ 1:3 ]
+    ax = Axis(fig[1, 1])
     scatter!(
-        axs[1], 
+        ax, 
         outputs[:totalinfections], 
         outputs[:mediantotaldiagnoses]; 
         color=:blue, markersize=3
     )
     rangebars!(
-        axs[1], 
+        ax, 
         outputs[:totalinfections], 
         outputs[:lcitotaldiagnoses], 
         outputs[:ucitotaldiagnoses]; 
         color=( :blue, 0.1 ),
     )
     lines!(
-        axs[1], 
+        ax, 
         [ extrema(outputs[:totalinfections])... ], 
         [ extrema(outputs[:totalinfections])... ]
-    )
-    
-    scatter!(
-        axs[2], 
-        outputs[:totalinfections], 
-        outputs[:mediantotaldiagnosesnoboost]; 
-        color=:blue, markersize=3
-    )
-    rangebars!(
-        axs[2], 
-        outputs[:totalinfections], 
-        outputs[:lcitotaldiagnosesnoboost],
-        outputs[:ucitotaldiagnosesnoboost]; 
-        color=( :blue, 0.1 ),
-    )
-    lines!(
-        axs[2], 
-        [ extrema(outputs[:totalinfections])... ], 
-        [ extrema(outputs[:totalinfections])... ]
-    )
-    
-    scatter!(
-        axs[3], 
-        outputs[:totalinfections],
-        (outputs[:mediantotaldiagnoses] .- outputs[:mediantotaldiagnosesnoboost]) ./ 
-            outputs[:mediantotaldiagnoses]; 
-        color=:blue, markersize=3,
     )
         
     return fig

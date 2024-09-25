@@ -272,11 +272,26 @@ end
     end
 end
 
-function loadchainsdf(filenamestart; psiprior=Exponential(1), kwargs...)
-    return loadchainsdf(filenamestart, psiprior; kwargs...)
+function loadchainsdf(
+    filenamestart; 
+    psiprior=Exponential(1), psi=psiprior, omega=automatic, kwargs...
+)
+    return loadchainsdf(filenamestart, psi, omega; kwargs...)
 end
 
-function loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
+function loadchainsdf(filenamestart, psi; omega=automatic, kwargs...) 
+    return loadchainsdf(filenamestart, psi, omega; kwargs...) 
+end
+
+function loadchainsdf(filenamestart, psi, omega; ids=1:5, maxrounds=12, kwargs...)  
+    df = _loadchainsdf_initialdf(psi, omega)
+    df = _loadchainsdf_loop(df, filenamestart, ids, maxrounds)
+    _loadchainsdf_addconstants!(df, 11, :ω, omega) 
+    _loadchainsdf_addconstants!(df, 12, :ψ, psi) 
+    return df
+end
+
+function _loadchainsdf_initialdf(psi, omega)
     df = DataFrame(
         :iteration => Int[ ],
         :chain => Int[ ],
@@ -288,12 +303,26 @@ function loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
         :α6 => Float64[ ],
         :α7 => Float64[ ],
         :α8 => Float64[ ],
-        :ω => Float64[ ],
-        :ψ => Float64[ ],
         :θ => Float64[ ],
         :sigma2 => Float64[ ],
         :log_density => Float64[ ],
     )
+    _loadchainsdf_initialdf_addcols!(df, 11, :ω, omega) 
+    _loadchainsdf_initialdf_addcols!(df, 12, :ψ, psi) 
+    return df
+end
+
+function _loadchainsdf_initialdf_addcols!(df, index, symbol, ::Automatic)
+    insertcols!(df, index, symbol => Float64[ ])
+end
+
+_loadchainsdf_initialdf_addcols!(::Any, ::Any, ::Any, ::Number) = nothing
+
+function _loadchainsdf_initialdf_addcols!(df, index, symbol, ::Sampleable)
+    _loadchainsdf_initialdf_addcols!(df, index, symbol, automatic)
+end
+
+function _loadchainsdf_loop(df, filenamestart, ids, maxrounds)
     for i ∈ ids
         _loaded = false 
         j = maxrounds
@@ -311,40 +340,12 @@ function loadchainsdf(filenamestart, ::Sampleable; ids=1:5, maxrounds=12,)
     return df
 end
 
-function loadchainsdf(filenamestart, psiprior::Number; ids=1:5, maxrounds=12,)
-    df = DataFrame(
-        :iteration => Int[ ],
-        :chain => Int[ ],
-        :α1 => Float64[ ],
-        :α2 => Float64[ ],
-        :α3 => Float64[ ],
-        :α4 => Float64[ ],
-        :α5 => Float64[ ],
-        :α6 => Float64[ ],
-        :α7 => Float64[ ],
-        :α8 => Float64[ ],
-        :ω => Float64[ ],
-        :θ => Float64[ ],
-        :sigma2 => Float64[ ],
-        :log_density => Float64[ ],
-    )
-    for i ∈ ids
-        _loaded = false 
-        j = maxrounds
-        while !_loaded && j >= 1
-            filename = "$(filenamestart)_id_$(i)_round_$(j).jld2"
-            if isfile(datadir("sims", filename))
-                _df = DataFrame(load(datadir("sims", filename))["chain"])
-                _df.chain = [ i for _ ∈ axes(_df, 1) ]
-                df = vcat(df, _df)
-                _loaded = true
-            end
-            j += -1
-        end
-    end
-    insertcols!(df, 12, :ψ => psiprior)
-    return df
+function _loadchainsdf_addconstants!(df, index, symbol, value) 
+    insertcols!(df, index, symbol => value)
 end
+
+_loadchainsdf_addconstants!(::Any, ::Any, ::Any, ::Automatic) = nothing 
+_loadchainsdf_addconstants!(::Any, ::Any, ::Any, ::Sampleable) = nothing 
 
 function predictdiagnoses(
     df::DataFrame, psi, 
@@ -485,9 +486,7 @@ function calculatebetas(df, vpd, psb, nhospitals; kwargs...)
 end
 
 function processoutputs(
-    data::DataFrame, coviddata::DataFrame, 
-    chaindf::DataFrame, chaindf_psi0::DataFrame, 
-    vaccinated::Vector; 
+    data::DataFrame, coviddata::DataFrame, chaindf::DataFrame, vaccinated::Vector; 
     dateid=:Date
 )
     # `data` can be the covid data or simulated data. `coviddata` must be the covid data
@@ -501,10 +500,6 @@ function processoutputs(
     boostpredictions = predicttotaldiagnoses(
         chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
     )
-    noboostpredictions = predicttotaldiagnoses(
-        chaindf_psi0, 0, 
-        patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
-    )
     @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
         chaindf, vpd, psb, nhospitals
     )
@@ -514,42 +509,33 @@ function processoutputs(
 
     return Dict(
         :chaindf => chaindf,
-        :chaindf_psi0 => chaindf_psi0,
         :community => community,
         :data => data,
         :lcibetah => lcibetah,
         :lcibetap => lcibetap,
         :lcilambdac => lcilambdac,
         :lcitotaldiagnoses => boostpredictions.lcitotaldiagnoses,
-        :lcitotaldiagnosesnoboost => noboostpredictions.lcitotaldiagnoses,
         :medianbetah => medianbetah,
         :medianbetap => medianbetap,
         :medianlambdac => medianlambdac,
         :mediantotaldiagnoses => boostpredictions.mediantotaldiagnoses,
-        :mediantotaldiagnosesnoboost => noboostpredictions.mediantotaldiagnoses,
         :ndates => ndates,
         :nhospitals => nhospitals,
         :patients => patients, 
         :predictdiagnoses => boostpredictions.predicteddiagnoses,
-        :predictdiagnosesnoboost => noboostpredictions.predicteddiagnoses,
         :psb => psb,
         :staff => staff,
         :stringency => stringency,
         :totaldiagnoses => boostpredictions.totaldiagnoses,
-        :totaldiagnosesnoboost => noboostpredictions.totaldiagnoses,
         :totalinfections => totalinfections,
         :ucibetah => ucibetah,
         :ucibetap => ucibetap,
         :ucilambdac => ucilambdac,
         :ucitotaldiagnoses => boostpredictions.ucitotaldiagnoses,
-        :ucitotaldiagnosesnoboost => noboostpredictions.ucitotaldiagnoses,
         :vpd => vpd,
     )
 end
 
-function processoutputs(
-    data::DataFrame, chaindf::DataFrame, chaindf_psi0::DataFrame, vaccinated::Vector; 
-    kwargs...
-)
-    return processoutputs(data, data, chaindf, chaindf_psi0, vaccinated; kwargs...)
+function processoutputs(data::DataFrame, chaindf::DataFrame, vaccinated::Vector; kwargs...)
+    return processoutputs(data, data, chaindf, vaccinated; kwargs...)
 end

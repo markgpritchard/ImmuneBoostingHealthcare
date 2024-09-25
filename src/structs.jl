@@ -1,6 +1,6 @@
 
 struct Automatic end  # not exported
-automatic = Automatic()  # not exported
+const automatic = Automatic()  # not exported
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
