@@ -3,10 +3,15 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
-include("analysesimssetup.jl")
 include(srcdir("PlottingFunctions.jl"))
 using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plot from simulations
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+include("analysesimssetup.jl")
 
 ## Unboosted sims 
 
@@ -53,7 +58,9 @@ plothospitaloutputs(boostedoutputs; firstplot=26)
 plothospitaloutputs(boostedoutputs; firstplot=51)
 plothospitaloutputs(boostedoutputs; firstplot=76)
 
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Plots from data
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if isfile(datadir("exp_pro", "finaldata.jld2"))
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
