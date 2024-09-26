@@ -70,6 +70,7 @@ boostedoutputs_omega180 = let
         "fittedvalues_boostedsimulation_omega_0.00556"; 
         omega=0.00556
     )
+    filter!(:chain => x -> x in [ 1, 3 ], boosteddf)
     processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
 end
 
@@ -114,7 +115,7 @@ plothospitaloutputs(dataoutputs; firstplot=126)
 dataoutputs_omega180 = let 
     datadf = loadchainsdf("fittedvalues_coviddata_omega_0.00556"; omega=0.00556)
     # remove chain that did not mix with others 
-    filter!(:chain => x -> x != 2, datadf)
+    #filter!(:chain => x -> x != 2, datadf)
     processoutputs(finaldata, datadf, vaccinated)  
 end
 
