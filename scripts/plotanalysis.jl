@@ -18,6 +18,8 @@ include("analysesimssetup.jl")
 unboostedoutputs = let 
     @unpack unboostedsimulation = simulations
     unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation")
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
     processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
 end
 
@@ -111,12 +113,30 @@ plothospitaloutputs(dataoutputs; firstplot=126)
 
 dataoutputs_omega180 = let 
     datadf = loadchainsdf("fittedvalues_coviddata_omega_0.00556"; omega=0.00556)
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x != 2, datadf)
     processoutputs(finaldata, datadf, vaccinated)  
 end
 
 plotchains(dataoutputs_omega180[:chaindf])
 
 datatotals_omega180fig = plotoutputs(dataoutputs_omega180)
+
+plothospitaloutputs(dataoutputs_omega180)
+plothospitaloutputs(dataoutputs_omega180; firstplot=26)
+plothospitaloutputs(dataoutputs_omega180; firstplot=51)
+plothospitaloutputs(dataoutputs_omega180; firstplot=76)
+plothospitaloutputs(dataoutputs_omega180; firstplot=101)
+plothospitaloutputs(dataoutputs_omega180; firstplot=126)
+
+dataoutputs_omega100 = let 
+    datadf = loadchainsdf("fittedvalues_coviddata_omega_0.01"; omega=0.01)
+    processoutputs(finaldata, datadf, vaccinated)  
+end
+
+plotchains(dataoutputs_omega100[:chaindf])
+
+datatotals_omega100fig = plotoutputs(dataoutputs_omega100)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
