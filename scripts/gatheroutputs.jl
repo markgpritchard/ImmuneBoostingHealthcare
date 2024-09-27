@@ -47,18 +47,18 @@ elseif option == 3  # data
     dateid = :Date
 end
 
+#=
 df = loadchainsdf("fittedvalues_$filenamekey")
 outputs = processoutputs(data, finaldata, df, vaccinated; dateid)
 safesave(datadir("sims", "$(shortfilenamekey)outputs.jld2"), outputs)
 
-#=
-for i ∈ [ 0, 1], j ∈ [ 0, 1 ], k ∈ [ 0, 1 ], l ∈ [ 0, 1 ]
-    i == j == k == l && continue 
-    includechains = Int[ ]
-    if i == 1 push!(includechains, 1) end
-    if j == 1 push!(includechains, 2) end
-    if k == 1 push!(includechains, 3) end
-    if l == 1 push!(includechains, 4) end
+if option == 1 
+    includechains = [ 2, 3 ] 
+else 
+    includechains = nothing
+end
+
+if !isnothing(includechains)
     outputs = processoutputs(
         data, 
         finaldata, 
@@ -74,14 +74,18 @@ end
 df_180 = loadchainsdf("fittedvalues_$(filenamekey)_omega_0.00556"; omega=0.00556)
 output_180 = processoutputs(data, finaldata, df_180, vaccinated; dateid)
 safesave(datadir("sims", "$(shortfilenamekey)outputs_omega180.jld2"), output_180)
-#=
-for i ∈ [ 0, 1], j ∈ [ 0, 1 ], k ∈ [ 0, 1 ], l ∈ [ 0, 1 ]
-    i == j == k == l && continue 
-    includechains = Int[ ]
-    if i == 1 push!(includechains, 1) end
-    if j == 1 push!(includechains, 2) end
-    if k == 1 push!(includechains, 3) end
-    if l == 1 push!(includechains, 4) end
+
+if option == 1 
+    includechains = [ 1 ] 
+elseif option == 2 
+    includechains = [ 1, 3 ] 
+elseif option == 3
+    includechains = [ 1, 3, 4 ] 
+else 
+    includechains = nothing
+end
+
+if !isnothing(includechains)
     outputs = processoutputs(
         data, 
         finaldata, 
@@ -94,7 +98,7 @@ for i ∈ [ 0, 1], j ∈ [ 0, 1 ], k ∈ [ 0, 1 ], l ∈ [ 0, 1 ]
         outputs
     )
 end
-=#
+
 df_100 = loadchainsdf("fittedvalues_$(filenamekey)_omega_0.01"; omega=0.01)
 output_100 = processoutputs(data, finaldata, df_100, vaccinated; dateid)
 safesave(datadir("sims", "$(shortfilenamekey)outputs_omega100.jld2"), output_100)

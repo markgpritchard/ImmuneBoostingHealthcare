@@ -11,22 +11,6 @@ using .PlottingFunctions
 # Plot from simulations
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-include("analysesimssetup.jl")
-
-## Unboosted sims 
-
-unboostedoutputs = let 
-    @unpack unboostedsimulation = simulations
-    unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation")
-    # remove chain that did not mix with others 
-    filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
-    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
-end
-
-plotchains(unboostedoutputs[:chaindf])
-
-unboostedtotalsfig = plotoutputs(unboostedoutputs)
-
 #=
 plothospitaloutputs(unboostedoutputs)
 plothospitaloutputs(unboostedoutputs; firstplot=26)
@@ -34,28 +18,22 @@ plothospitaloutputs(unboostedoutputs; firstplot=51)
 plothospitaloutputs(unboostedoutputs; firstplot=76)
 =#
 
-unboostedoutputs_omega180 = let 
-    @unpack unboostedsimulation = simulations
-    unboosteddf = loadchainsdf(
-        "fittedvalues_unboostedsimulation_omega_0.00556"; 
-        omega=0.00556
-    )
-    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
-end
+unboostedoutputs_omega180 = load(datadir("sims", "unboostedoutputs_omega180.jld2"))
 
-plotchains(unboostedoutputs_omega180[:chaindf])
+plotchains(unboostedoutputs_omega180["chaindf"])
 
 unboostedtotalsfig = plotoutputs(unboostedoutputs_omega180)
 
+
+unboostedoutputs_omega100 = load(datadir("sims", "unboostedoutputs_omega100.jld2"))
+
+plotchains(unboostedoutputs_omega100["chaindf"])
+
 ## Boosted sims 
 
-boostedoutputs = let 
-    @unpack boostedsimulation = simulations
-    boosteddf = loadchainsdf("fittedvalues_boostedsimulation")
-    processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
-end
+boostedoutputs_omega180 = load(datadir("sims", "boostedoutputs_omega180.jld2"))
+plotchains(boostedoutputs_omega180["chaindf"])
 
-plotchains(boostedoutputs[:chaindf])
 
 boostedtotalsfig = plotoutputs(boostedoutputs)
 
@@ -82,28 +60,15 @@ boostedtotalsfig = plotoutputs(boostedoutputs_omega180)
 # Plots from data
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-if isfile(datadir("exp_pro", "finaldata.jld2"))
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-else 
-    include("loaddata.jl")
-    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
-end
+dataoutputs_omega180 = load(datadir("sims", "dataoutputs_omega180.jld2"))
+plotchains(dataoutputs_omega180["chaindf"])
 
-include("analysedatasetup.jl")
-
-dataoutputs = let 
-    datadf = loadchainsdf("fittedvalues_coviddata")
-    processoutputs(finaldata, datadf, vaccinated)    
-end
-
-plotchains(dataoutputs[:chaindf])
-#plotchains(dataoutputs[:chaindf_psi0])
 
 scatter(dataoutputs[:totalinfections], vpd)
 scatter(dataoutputs[:totalinfections], psb)
 
 
-datatotalsfig = plotoutputs(dataoutputs)
+datatotalsfig = plotoutputs(dataoutputs_omega180)
 
 plothospitaloutputs(dataoutputs)
 plothospitaloutputs(dataoutputs; firstplot=26)
