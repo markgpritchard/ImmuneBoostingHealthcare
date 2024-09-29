@@ -3,9 +3,15 @@ using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
 
-include("analysedatasetup.jl")
+include("analysesimssetup.jl")
 
-jseries = 1:nhospitals
+#jseries = sample(1:nhospitals, 25; replace=false)
+jseries = [
+    82, 38, 23, 25, 74, 6, 9, 75, 57, 65, 7, 59, 
+    81, 31, 3, 50, 10, 94, 15, 42, 19, 8, 47, 21, 27
+]
+
+#sortjseries = sort(jseries)
 
 println("analysesimsperhospital.jl running with hospital ids $jseries, id=$id")
 
@@ -65,15 +71,15 @@ fitted_pt = pigeons( ;
     n_chains=4,
     multithreaded=true,
     record=[ traces; record_default() ],
-    seed=(id),
+    seed=(1000 + id),
     variational=GaussianReference(),
 )
 
 new_pt = fitted_pt
 
 for i ∈ 1:n_rounds
-    filename = "fittedvalues_coviddataperhospital_omega_$(ω)_id_$(id)_round_$(i).jld2"
-    nextfilename = "fittedvalues_coviddataperhospital_omega_$(ω)_id_$(id)_round_$(i + 1).jld2"
+    filename = "fittedvalues_$(sim)perhospital_subset_omega_$(ω)_id_$(id)_round_$(i).jld2"
+    nextfilename = "fittedvalues_$(sim)perhospital_subset_omega_$(ω)_id_$(id)_round_$(i + 1).jld2"
     isfile(datadir("sims", nextfilename)) && continue
     if isfile(datadir("sims", filename))
         global new_pt = load(datadir("sims", filename))["pt"]
@@ -91,5 +97,3 @@ for i ∈ 1:n_rounds
         safesave(datadir("sims", filename), resultdict)
     end
 end
-
-

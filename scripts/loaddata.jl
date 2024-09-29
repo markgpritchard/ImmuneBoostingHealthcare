@@ -119,6 +119,21 @@ finaldata = let
         end
     end
 
+    for i ∈ axes(coviddata, 1)
+        c = :PatientsProportion
+        if ismissing(getproperty(coviddata, c)[i]) || getproperty(coviddata, c)[i] < 0
+            getproperty(coviddata, c)[i] = 0  # most of these are filtered out later 
+        elseif getproperty(coviddata, c)[i] > 1
+            getproperty(coviddata, c)[i] = 1
+        end
+        c = :StaffProportion
+        if ismissing(getproperty(coviddata, c)[i]) || getproperty(coviddata, c)[i] < 0
+            getproperty(coviddata, c)[i] = missing  # most of these are filtered out later 
+        elseif getproperty(coviddata, c)[i] > 1
+            getproperty(coviddata, c)[i] = missing
+        end
+    end
+
     leftjoin!(coviddata, hospitaldata; on= :Code => :TrustCode )
 
     communitydata = CSV.read(

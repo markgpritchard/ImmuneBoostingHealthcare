@@ -4,26 +4,26 @@ countdates(data; dateid=:Date) = length(unique(getproperty(data, dateid)))
 
 function datamatrices(data, ndates, nhospitals)
     patients = zeros(ndates, nhospitals)
-    staff = zeros(ndates, nhospitals) 
+    staff = Matrix{Union{Float64, Missing}}(undef, ndates, nhospitals) # zeros(ndates, nhospitals) 
     newstaff = zeros(ndates, nhospitals) 
     for (i, c) ∈ enumerate(unique(data.Code))
         _tdf = filter(:Code => x -> x == c, data)
         for t ∈ 1:ndates
             patients[t, i] = _tdf.PatientsProportion[t]
             staff[t, i] = _tdf.StaffProportion[t]
-            if t == 1 
-                newstaff[t, i] = staff[t, i] / 10
-            elseif t <= 10 
-                newstaff[t, i] = max(
-                    0,
-                    min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
-                )
-            else
-                newstaff[t, i] = max(
-                    0,
-                    min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
-                )
-            end
+           # if t == 1 
+            #    newstaff[t, i] = staff[t, i] / 10
+            #elseif t <= 10 
+            #    newstaff[t, i] = max(
+            #        0,
+            #        min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
+            #    )
+            #else
+            #    newstaff[t, i] = max(
+            #        0,
+            #        min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
+            #    )
+            #end
         end
     end
     return @ntuple newstaff patients staff
@@ -189,18 +189,19 @@ end
         hcwseiirrr_isolating!(isolating, automatic, p, 1:ndates, λc, patients, vaccinated, j)
 
         for t ∈ 1:ndates
+            ismissing(staff[t, j]) && continue
             Turing.@addlogprob! logpdf(Normal(isolating[t], sigma2), staff[t, j])
         end
     end
 end
 
-@model function fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
-    return βh ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
-end
-
-@model function fitbetap(α1, α2, α3, vpd, psb, psigma2, j) 
-    return βp ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
-end
+#@model function fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
+#    return βh ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
+#end
+#
+#@model function fitbetap(α1, α2, α3, vpd, psb, psigma2, j) 
+#    return βp ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
+#end
 
 @model function fitmodelperhospital( 
     patients, staff, vaccinated, community, 
@@ -253,20 +254,46 @@ end
     isolating = zeros(Float64, ndates)
 
     λc = [ max(zero(T), α7 + α8 * (100 - s)) for s ∈ stringency ] .* community
-    #betahs = zeros(T, nhospitals)
-    #betaps = zeros(T, nhospitals)
+    #betahs = zeros(T, length(jseries))
+    #betaps = zeros(T, length(jseries))
+    #for (ind, j) ∈ enumerate(jseries)
+    #    betahs[ind] ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
+    #    betaps[ind] ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
+    #end
+
+    #betahs ~ [ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100) for j ∈ jseries ]
+    #betaps ~ [ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100) for j ∈ jseries ]
     
-    for j ∈ jseries
-        @submodel prefix="hosp$(j)_" βh = fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
-        @submodel prefix="hosp$(j)_" βp = fitbetap(α4, α5, α6, vpd, psb, psigma2, j) 
+    betahs ~ MvNormal(
+        [ α4 + α5 * vpd[j] + α6 * psb[j] for j ∈ jseries ], 
+        hsigma2
+    )
+    betaps ~ MvNormal(
+        [ α1 + α2 * vpd[j] + α3 * psb[j] for j ∈ jseries ], 
+        hsigma2
+    )
+
+
+    for (ind, j) ∈ enumerate(jseries)
+        #@submodel prefix="hosp$(j)_" βh = fitbetah(α4, α5, α6, vpd, psb, hsigma2, j) 
+        #@submodel prefix="hosp$(j)_" βp = fitbetap(α4, α5, α6, vpd, psb, psigma2, j) 
 
         #βh ~ truncated(Normal(α4 + α5 * vpd[j] + α6 * psb[j], hsigma2), 0, 100)
         #βp ~ truncated(Normal(α1 + α2 * vpd[j] + α3 * psb[j], psigma2), 0, 100)
-        p = HCWSEIIRRRp(βh, βp, 0.5, 0.2, ψ, ω, θ)
+        p = HCWSEIIRRRp(
+            max(betahs[ind], zero(T)), 
+            max(betaps[ind], zero(T)), 
+            0.5, 
+            0.2, 
+            ψ, 
+            ω, 
+            θ
+        )
         #println("$p")
         hcwseiirrr_isolating!(isolating, automatic, p, 1:ndates, λc, patients, vaccinated, j)
 
         for t ∈ 1:ndates
+            ismissing(staff[t, j]) && continue
             Turing.@addlogprob! logpdf(Normal(isolating[t], sigma2), staff[t, j])
         end
     end
