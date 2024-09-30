@@ -11,6 +11,8 @@ using .PlottingFunctions
 # Plot from simulations
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+include("analysesimssetup.jl")
+
 #=
 plothospitaloutputs(unboostedoutputs)
 plothospitaloutputs(unboostedoutputs; firstplot=26)
@@ -18,29 +20,143 @@ plothospitaloutputs(unboostedoutputs; firstplot=51)
 plothospitaloutputs(unboostedoutputs; firstplot=76)
 =#
 
-unboostedoutputs_omega180 = load(datadir("sims", "unboostedoutputs_omega180.jld2"))
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulations without natural immune boosting
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# no hospital-specific parameters, unboosted immunity lasts 180 days
+
+unboostedoutputs_omega180 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsdf(
+        "fittedvalues_unboostedsimulation_omega_0.00556"; 
+        omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
+end
 
 plotchains(unboostedoutputs_omega180["chaindf"])
 
-unboostedtotalsfig = plotoutputs(unboostedoutputs_omega180)
+unboostedtotals_omega180fig = plotoutputs(unboostedoutputs_omega180)
 
 
-unboostedoutputs_omega100 = load(datadir("sims", "unboostedoutputs_omega100.jld2"))
+# no hospital-specific parameters, unboosted immunity lasts 100 days
+
+unboostedoutputs_omega100 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsdf("fittedvalues_unboostedsimulation_omega_0.01"; omega=0.01)
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputs(unboostedsimulation, finaldata, unboosteddf, vaccinated; dateid=:t)    
+end
 
 plotchains(unboostedoutputs_omega100["chaindf"])
 
-## Boosted sims 
-
-boostedoutputs_omega180 = load(datadir("sims", "boostedoutputs_omega180.jld2"))
-plotchains(boostedoutputs_omega180["chaindf"])
+unboostedtotals_omega100fig = plotoutputs(unboostedoutputs_omega100)
 
 
-boostedtotalsfig = plotoutputs(boostedoutputs)
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
 
-plothospitaloutputs(boostedoutputs)
-plothospitaloutputs(boostedoutputs; firstplot=26)
-plothospitaloutputs(boostedoutputs; firstplot=51)
-plothospitaloutputs(boostedoutputs; firstplot=76)
+jseries = [
+    82, 38, 23, 25, 74, 6, 9, 75, 57, 65, 7, 59, 
+    81, 31, 3, 50, 10, 94, 15, 42, 19, 8, 47, 21, 27
+]
+
+unboostedoutputsperhospital_omega180 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseries; 
+        dateid=:t
+    )    
+end
+
+plotchains(unboostedoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
+
+unboostedtotalsperhospital_omega180fig = plotoutputs(unboostedoutputsperhospital_omega180)
+
+
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
+
+unboostedoutputsperhospital_omega100 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_subset_omega_0.01"; 
+        jseries, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseries; 
+        dateid=:t
+    )    
+end
+
+plotchains(unboostedoutputsperhospital_omega100["chaindf"]; size=( 400, 4800 ))
+
+unboostedtotalsperhospital_omega100fig = plotoutputs(unboostedoutputsperhospital_omega100)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 180 days
+
+jseriesall = 1:nhospitals
+
+unboostedoutputsperhospitalall_omega180 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_omega_0.00556"; 
+        jseries=jseriesall, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )    
+end
+
+plotchains(unboostedoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
+
+unboostedtotalsperhospitalall_omega180fig = plotoutputs(
+    unboostedoutputsperhospitalall_omega180
+)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 100 days
+
+unboostedoutputsperhospitalall_omega100 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_omega_0.01"; 
+        jseries=jseriesall, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )    
+end
+
+plotchains(unboostedoutputsperhospitalall_omega100["chaindf"]; size=( 400, 4800 ))
+
+unboostedtotalsperhospitalall_omega100fig = plotoutputs(
+    unboostedoutputsperhospitalall_omega100
+)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulations with natural immune boosting
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# no hospital-specific parameters, unboosted immunity lasts 180 days
 
 boostedoutputs_omega180 = let 
     @unpack boostedsimulation = simulations
@@ -48,61 +164,229 @@ boostedoutputs_omega180 = let
         "fittedvalues_boostedsimulation_omega_0.00556"; 
         omega=0.00556
     )
-    filter!(:chain => x -> x in [ 1, 3 ], boosteddf)
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
     processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
 end
 
-plotchains(boostedoutputs_omega180[:chaindf])
+plotchains(boostedoutputs_omega180["chaindf"])
 
-boostedtotalsfig = plotoutputs(boostedoutputs_omega180)
+boostedtotals_omega180fig = plotoutputs(boostedoutputs_omega180)
+
+
+# no hospital-specific parameters, unboosted immunity lasts 100 days
+
+boostedoutputs_omega100 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsdf("fittedvalues_boostedsimulation_omega_0.01"; omega=0.01)
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputs(boostedsimulation, finaldata, boosteddf, vaccinated; dateid=:t)    
+end
+
+plotchains(boostedoutputs_omega100["chaindf"])
+
+boostedtotals_omega100fig = plotoutputs(boostedoutputs_omega100)
+
+
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
+
+boostedoutputsperhospital_omega180 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsperhospitaldf(
+        "fittedvalues_boostedsimulationperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        boostedsimulation, finaldata, boosteddf, vaccinated, jseries; 
+        dateid=:t
+    )    
+end
+
+plotchains(boostedoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
+
+boostedtotalsperhospital_omega180fig = plotoutputs(boostedoutputsperhospital_omega180)
+
+
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
+
+boostedoutputsperhospital_omega100 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsperhospitaldf(
+        "fittedvalues_boostedsimulationperhospital_subset_omega_0.01"; 
+        jseries, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        boostedsimulation, finaldata, boosteddf, vaccinated, jseries; 
+        dateid=:t
+    )    
+end
+
+plotchains(boostedoutputsperhospital_omega100["chaindf"]; size=( 400, 4800 ))
+
+boostedtotalsperhospital_omega100fig = plotoutputs(boostedoutputsperhospital_omega100)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 180 days
+
+boostedoutputsperhospitalall_omega180 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsperhospitaldf(
+        "fittedvalues_boostedsimulationperhospital_omega_0.00556"; 
+        jseries=jseriesall, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        boostedsimulation, finaldata, boosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )    
+end
+
+plotchains(boostedoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
+
+boostedtotalsperhospitalall_omega180fig = plotoutputs(
+    boostedoutputsperhospitalall_omega180
+)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 100 days
+
+boostedoutputsperhospitalall_omega100 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsperhospitaldf(
+        "fittedvalues_boostedsimulationperhospital_omega_0.01"; 
+        jseries=jseriesall, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        boostedsimulation, finaldata, boosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )    
+end
+
+plotchains(boostedoutputsperhospitalall_omega100["chaindf"]; size=( 400, 4800 ))
+
+boostedtotalsperhospitalall_omega100fig = plotoutputs(
+    boostedoutputsperhospitalall_omega100
+)
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plots from data
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-dataoutputs_omega180 = load(datadir("sims", "dataoutputs_omega180.jld2"))
-plotchains(dataoutputs_omega180["chaindf"])
+if isfile(datadir("exp_pro", "finaldata.jld2"))
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
+else 
+    include("loaddata.jl")
+    finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
+end
 
+include("analysedatasetup.jl")
 
-scatter(dataoutputs[:totalinfections], vpd)
-scatter(dataoutputs[:totalinfections], psb)
-
-
-datatotalsfig = plotoutputs(dataoutputs_omega180)
-
-plothospitaloutputs(dataoutputs)
-plothospitaloutputs(dataoutputs; firstplot=26)
-plothospitaloutputs(dataoutputs; firstplot=51)
-plothospitaloutputs(dataoutputs; firstplot=76)
-plothospitaloutputs(dataoutputs; firstplot=101)
-plothospitaloutputs(dataoutputs; firstplot=126)
+# no hospital-specific parameters, unboosted immunity lasts 180 days
 
 dataoutputs_omega180 = let 
     datadf = loadchainsdf("fittedvalues_coviddata_omega_0.00556"; omega=0.00556)
     # remove chain that did not mix with others 
-    #filter!(:chain => x -> x != 2, datadf)
-    processoutputs(finaldata, datadf, vaccinated)  
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputs(finaldata, datadf, vaccinated)    
 end
 
-plotchains(dataoutputs_omega180[:chaindf])
+plotchains(dataoutputs_omega180["chaindf"])
 
-datatotals_omega180fig = plotoutputs(dataoutputs_omega180)
+dataoutputs_omega180fig = plotoutputs(dataoutputs_omega180)
 
-plothospitaloutputs(dataoutputs_omega180)
-plothospitaloutputs(dataoutputs_omega180; firstplot=26)
-plothospitaloutputs(dataoutputs_omega180; firstplot=51)
-plothospitaloutputs(dataoutputs_omega180; firstplot=76)
-plothospitaloutputs(dataoutputs_omega180; firstplot=101)
-plothospitaloutputs(dataoutputs_omega180; firstplot=126)
+
+# no hospital-specific parameters, unboosted immunity lasts 100 days
 
 dataoutputs_omega100 = let 
     datadf = loadchainsdf("fittedvalues_coviddata_omega_0.01"; omega=0.01)
-    processoutputs(finaldata, datadf, vaccinated)  
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputs(finaldata, datadf, vaccinated)    
 end
 
-plotchains(dataoutputs_omega100[:chaindf])
+plotchains(dataoutputs_omega100["chaindf"])
 
-datatotals_omega100fig = plotoutputs(dataoutputs_omega100)
+dataoutputs_omega100fig = plotoutputs(dataoutputs_omega100)
+
+
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
+
+dataoutputsperhospital_omega180 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseries)    
+end
+
+plotchains(dataoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
+
+dataoutputsperhospital_omega180fig = plotoutputs(dataoutputsperhospital_omega180)
+
+
+# hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
+
+dataoutputsperhospital_omega100 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.01"; 
+        jseries, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        finaldata, datadf, vaccinated, jseries; 
+        dateid=:t
+    )    
+end
+
+plotchains(dataoutputsperhospital_omega100["chaindf"]; size=( 400, 4800 ))
+
+dataoutputsperhospital_omega100fig = plotoutputs(dataoutputsperhospital_omega100)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 180 days
+
+dataoutputsperhospitalall_omega180 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_omega_0.00556"; 
+        jseries=jseriesall, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesall)    
+end
+
+plotchains(dataoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
+
+dataoutputsperhospitalall_omega180fig = plotoutputs(dataoutputsperhospitalall_omega180)
+
+
+# hospital-specific parameters for all hospitals, unboosted immunity lasts 100 days
+
+bdataoutputsperhospitalall_omega100 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_omega_0.01"; 
+        jseries=jseriesall, omega=0.01
+    )
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesall)    
+end
+
+plotchains(dataoutputsperhospitalall_omega100["chaindf"]; size=( 400, 4800 ))
+
+dataoutputsperhospitalall_omega100fig = plotoutputs(dataoutputsperhospitalall_omega100)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

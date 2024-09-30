@@ -4,26 +4,28 @@ countdates(data; dateid=:Date) = length(unique(getproperty(data, dateid)))
 
 function datamatrices(data, ndates, nhospitals)
     patients = zeros(ndates, nhospitals)
-    staff = Matrix{Union{Float64, Missing}}(undef, ndates, nhospitals) # zeros(ndates, nhospitals) 
+    staff = Matrix{Union{Float64, Missing}}(undef, ndates, nhospitals)  # zeros(ndates, nhospitals) 
     newstaff = zeros(ndates, nhospitals) 
     for (i, c) ∈ enumerate(unique(data.Code))
         _tdf = filter(:Code => x -> x == c, data)
         for t ∈ 1:ndates
             patients[t, i] = _tdf.PatientsProportion[t]
             staff[t, i] = _tdf.StaffProportion[t]
-           # if t == 1 
-            #    newstaff[t, i] = staff[t, i] / 10
-            #elseif t <= 10 
-            #    newstaff[t, i] = max(
-            #        0,
-            #        min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
-            #    )
-            #else
-            #    newstaff[t, i] = max(
-            #        0,
-            #        min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
-            #    )
-            #end
+            if ismissing(staff[t, i])
+                newstaff[t, i] = 0.0
+            elseif t == 1 
+                newstaff[t, i] = staff[t, i] / 10
+            elseif t <= 10 
+                newstaff[t, i] = max(
+                    0,
+                    min(1, staff[t, i] * t / 10 - sum(@view newstaff[1:(t - 1), i]))
+                )
+            else
+                newstaff[t, i] = max(
+                    0,
+                    min(1, staff[t, i] - sum(@view newstaff[(t - 10):(t - 1), i]))
+                )
+            end
         end
     end
     return @ntuple newstaff patients staff
@@ -339,10 +341,15 @@ function _loadchainsdf_initialdf(psi, omega)
     return df
 end
 
-function _loadchainsdf_initialdf_addcols!(df, index, symbol, ::Automatic)
+function _loadchainsdf_initialdf_addcols!(df, symbol::Symbol, ::Automatic)
+    insertcols!(df, symbol => Float64[ ])
+end
+
+function _loadchainsdf_initialdf_addcols!(df, index::Number, symbol::Symbol, ::Automatic)
     insertcols!(df, index, symbol => Float64[ ])
 end
 
+_loadchainsdf_initialdf_addcols!(::Any, ::Any, ::Number) = nothing
 _loadchainsdf_initialdf_addcols!(::Any, ::Any, ::Any, ::Number) = nothing
 
 function _loadchainsdf_initialdf_addcols!(df, index, symbol, ::Sampleable)
@@ -374,9 +381,60 @@ end
 _loadchainsdf_addconstants!(::Any, ::Any, ::Any, ::Automatic) = nothing 
 _loadchainsdf_addconstants!(::Any, ::Any, ::Any, ::Sampleable) = nothing 
 
+function loadchainsperhospitaldf(
+    filenamestart; 
+    jseries, psi=automatic, omega=automatic, kwargs...
+)
+    return loadchainsperhospitaldf(filenamestart, psi, omega, jseries; kwargs...)
+end
+
+function loadchainsperhospitaldf(
+    filenamestart, psi, omega, jseries; 
+    ids=1:5, maxrounds=12, kwargs...
+)  
+    df = _loadchainsdf_initialdf(psi, omega)
+    _loadchainsdf_initialdf_addcols!(df, ncol(df), :hsigma2, automatic) 
+    _loadchainsdf_initialdf_addcols!(df, ncol(df), :psigma2, automatic) 
+    _loadchainsperhospital_initialdf_addcols!(df, jseries) 
+    
+    df = _loadchainsdf_loop(df, filenamestart, ids, maxrounds)
+    _loadchainsdf_addconstants!(df, 11, :ω, omega) 
+    _loadchainsdf_addconstants!(df, 12, :ψ, psi) 
+    _loadchainsperhospitaldf_zeronegativebetas!(df, jseries)
+    return df
+end
+
+function _loadchainsperhospital_initialdf_addcols!(df, jseries)
+    _loadchainsperhospital_initialdf_addcolsloop!(df, jseries, "betahs")
+    _loadchainsperhospital_initialdf_addcolsloop!(df, jseries, "betaps")
+end
+
+function _loadchainsperhospital_initialdf_addcolsloop!(df, jseries, symbolstart)
+    for ind ∈ eachindex(jseries) 
+        _loadchainsdf_initialdf_addcols!(
+            df, ncol(df), Symbol("$symbolstart[$ind]"), automatic
+        ) 
+    end
+end
+
+function _loadchainsperhospitaldf_zeronegativebetas!(df, jseries)
+    _loadchainsperhospitaldf_zeronegativebetasloop!(df, jseries, "betahs")
+    _loadchainsperhospitaldf_zeronegativebetasloop!(df, jseries, "betaps")
+end
+
+function _loadchainsperhospitaldf_zeronegativebetasloop!(df, jseries, symbolstart)
+    for ind ∈ eachindex(jseries) 
+        for x ∈ axes(df, 1)
+            if getproperty(df, Symbol("$symbolstart[$ind]"))[x] < 0 
+                getproperty(df, Symbol("$symbolstart[$ind]"))[x] = 0.0 
+            end
+        end
+    end
+end
+
 function predictdiagnoses(
-    df::DataFrame, psi, 
-    patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    df::DataFrame, 
+    patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals::Integer
 )
     diagnoses = zeros(Float64, ndates, nhospitals, size(df, 1))
     for i ∈ axes(df, 1)
@@ -390,7 +448,7 @@ function predictdiagnoses(
                 max(zero(Float64), df.α1[i] + df.α2[i] * vpd[j] + df.α3[i] * psb[j]),  # βp 
                 0.5,  # η 
                 0.2,  # γ 
-                _predictdiagnosespsi(psi, df, i),
+                df.ψ[i],  
                 df.ω[i],  
                 df.θ[i]
             )
@@ -404,16 +462,33 @@ function predictdiagnoses(
 end
 
 function predictdiagnoses(
-    df::DataFrame, patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
+    df::DataFrame, 
+    patients, vaccinated, community, vpd, psb, stringency, ndates, jseries::AbstractVector
 )
-    return predictdiagnoses(
-        df, automatic, 
-        patients, vaccinated, community, vpd, psb, stringency, ndates, nhospitals
-    )
+    diagnoses = zeros(Float64, ndates, length(jseries), size(df, 1))
+    for i ∈ axes(df, 1)
+        λc = [ 
+            max(zero(Float64), df.α7[i] + df.α8[i] * (100 - s)) 
+            for s ∈ stringency 
+        ] .* community
+        for (ind, j) ∈ enumerate(jseries)
+            p = HCWSEIIRRRp(
+                max(0.0, getproperty(df, Symbol("betahs[$ind]"))[i]),  # βh 
+                max(0.0, getproperty(df, Symbol("betaps[$ind]"))[i]),  # βp 
+                0.5,  # η 
+                0.2,  # γ 
+                df.ψ[i],  
+                df.ω[i],  
+                df.θ[i]
+            )
+            hcwseiirrr_isolating!(
+                view(diagnoses, :, ind, i), automatic, p, 1:ndates, 
+                λc, patients, vaccinated, j
+            )
+        end
+    end
+    return diagnoses
 end
-
-_predictdiagnosespsi(psi::Number, ::Any, ::Any) = psi
-_predictdiagnosespsi(::Automatic, df, i) = df.ψ[i]
 
 function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ))
     predicteddiagnoses = predictdiagnoses(args...)
@@ -565,4 +640,62 @@ end
 
 function processoutputs(data::DataFrame, chaindf::DataFrame, vaccinated::Vector; kwargs...)
     return processoutputs(data, data, chaindf, vaccinated; kwargs...)
+end
+
+function processoutputsperhospital(
+    data::DataFrame, coviddata::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    dateid=:Date
+)
+    # `data` can be the covid data or simulated data. `coviddata` must be the covid data
+    nhospitals = counthospitals(data)
+    ndates = countdates(data; dateid)
+    @unpack newstaff, patients, staff = datamatrices(data, ndates, nhospitals)
+    totalinfections = [ sum(@view newstaff[:, i]) for i ∈ jseries ]
+    @unpack vpd, psb = hospitalconditionmatrices(data)
+    stringency = coviddata.StringencyIndex_Average[1:ndates]
+    community = data.weeklycases[1:ndates] ./ 56_000_000
+    boostpredictions = predicttotaldiagnoses(
+        chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, jseries
+    )
+    @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
+        chaindf, vpd, psb, nhospitals
+    )
+    @unpack medianlambdac, lcilambdac, ucilambdac = calculatelambdacs(
+        chaindf, stringency, community
+    ) 
+
+    return Dict(
+        "chaindf" => chaindf,
+        "community" => community,
+        "data" => data,
+        "lcibetah" => lcibetah,
+        "lcibetap" => lcibetap,
+        "lcilambdac" => lcilambdac,
+        "lcitotaldiagnoses" => boostpredictions.lcitotaldiagnoses,
+        "medianbetah" => medianbetah,
+        "medianbetap" => medianbetap,
+        "medianlambdac" => medianlambdac,
+        "mediantotaldiagnoses" => boostpredictions.mediantotaldiagnoses,
+        "ndates" => ndates,
+        "nhospitals" => nhospitals,
+        "patients" => patients, 
+        "predictdiagnoses" => boostpredictions.predicteddiagnoses,
+        "psb" => psb,
+        "staff" => staff,
+        "stringency" => stringency,
+        "totaldiagnoses" => boostpredictions.totaldiagnoses,
+        "totalinfections" => totalinfections,
+        "ucibetah" => ucibetah,
+        "ucibetap" => ucibetap,
+        "ucilambdac" => ucilambdac,
+        "ucitotaldiagnoses" => boostpredictions.ucitotaldiagnoses,
+        "vpd" => vpd,
+    )
+end
+
+function processoutputsperhospital(
+    data::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    kwargs...
+)
+    return processoutputsperhospital(data, data, chaindf, vaccinated, jseries; kwargs...)
 end
