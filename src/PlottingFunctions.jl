@@ -8,7 +8,8 @@ using DrWatson
 using CairoMakie, DataFrames
 
 export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, formataxis!, formataxishidespines!, 
-    labelplots!, plotchains, plothospitaloutputs, plotoutputs, setorigin!, setvalue!
+    labelplots!, plotchains, plothospitaloutputs, plotoutputs, plotoutputs!, setorigin!, 
+    setvalue!
 
 # Consistent colour scheme across plots 
 
@@ -53,7 +54,16 @@ end
 
 function plotoutputs(outputs)
     fig = Figure()
+    plotoutputs!(fig, outputs)
+    return fig
+end
+
+function plotoutputs!(fig::Figure, outputs)
     ax = Axis(fig[1, 1])
+    plotoutputs!(ax, outputs)
+end
+
+function plotoutputs!(ax::Axis, outputs)
     scatter!(
         ax, 
         outputs["totalinfections"], 
@@ -72,35 +82,36 @@ function plotoutputs(outputs)
         [ extrema(outputs["totalinfections"])... ], 
         [ extrema(outputs["totalinfections"])... ]
     )
-        
-    return fig
 end
 
-function plothospitaloutputs(outputs; firstplot=1)
+function plothospitaloutputs(outputs; firstplot=1, jseries=firstplot:(firstplot + 25), suppliedextra=true)
     # default for 25 plots 
     fig = Figure()
     axs = [ Axis(fig[i, j]) for i ∈ 1:5, j ∈ 1:5 ]
-    for (j, code) ∈ enumerate(unique(outputs[:data].Code))
-        j < firstplot && continue
-        j >= firstplot + 25 && continue
-        inds = findall(x -> x == code, outputs[:data].Code)
-        for k ∈ axes(outputs[:predictdiagnoses], 3)
+    plotind = 0 
+    for (j, code) ∈ enumerate(unique(outputs["data"].Code))
+        j ∉ jseries && continue
+        plotind += 1
+        inds = findall(x -> x == code, outputs["data"].Code)
+        for k ∈ axes(outputs["predictdiagnoses"], 3)
             lines!(
-                axs[j+1-firstplot],
-                outputs[:data].t[inds],
-                outputs[:predictdiagnoses][:, j, k];
+                axs[plotind],
+                outputs["data"].t[inds],
+                suppliedextra ? 
+                    outputs["predictdiagnoses"][:, j, k] : 
+                    outputs["predictdiagnoses"][:, plotind, k];
                 color=( :blue, 0.1 )
             )
         end
         formataxis!(
-            axs[j+1-firstplot]; 
+            axs[plotind]; 
             hidespines=( :r, :t, :l, :b, ), 
             hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
         )
         scatter!(
-            axs[j+1-firstplot], 
-            outputs[:data].t[inds], 
-            outputs[:data].CovidAbsences[inds];
+            axs[plotind], 
+            outputs["data"].t[inds], 
+            outputs["data"].CovidAbsences[inds];
             color=:black, markersize=3,
         )
     end

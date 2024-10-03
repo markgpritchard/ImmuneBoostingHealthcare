@@ -80,6 +80,72 @@ end
 
 plotchains(unboostedoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
 
+unboostedoutputsperhospital_omega180_forcepsi0 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    for i ∈ axes(unboosteddf, 1) 
+        unboosteddf.ψ[i] = 0.0 
+    end
+
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseries; 
+        dateid=:t
+    )     
+end
+
+unboostedtotalsperhospital_omega180fig = let 
+    raweffectofboosting = zeros(
+        size(unboostedoutputsperhospital_omega180["totaldiagnoses"], 2), 
+        length(jseries)
+    )
+    for i ∈ axes(raweffectofboosting, 1), j ∈ eachindex(jseries) 
+        boosted = unboostedoutputsperhospital_omega180["totaldiagnoses"][j, i]
+        unboosted = unboostedoutputsperhospital_omega180_forcepsi0["totaldiagnoses"][j, i]
+        raweffectofboosting[i, j] = (boosted - unboosted) #/ boosted
+    end
+
+    medianeffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.5) 
+        for j ∈ eachindex(jseries) 
+    ]
+    lceffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.05) 
+        for j ∈ eachindex(jseries) 
+    ]
+    ucneffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.95) 
+        for j ∈ eachindex(jseries) 
+    ]
+
+    fig = Figure(; size=( 400, 500 ))
+    ax1 = Axis(fig[1, 1])
+    ax2 = Axis(fig[2, 1])
+    
+    plotoutputs!(ax1, unboostedoutputsperhospital_omega180)
+    #plotoutputs!(ax2, dataoutputsperhospital_omega180_forcepsi0)
+
+    scatter!(
+        ax2, 
+        unboostedoutputsperhospital_omega180["totalinfections"], 
+        medianeffectofboosting; 
+        color=:blue, markersize=3
+    )
+    rangebars!(
+        ax2, 
+        unboostedoutputsperhospital_omega180["totalinfections"], 
+        lceffectofboosting, 
+        ucneffectofboosting; 
+        color=( :blue, 0.1 ),
+    )
+
+    fig
+end
+
 unboostedtotalsperhospital_omega180fig = plotoutputs(unboostedoutputsperhospital_omega180)
 
 
@@ -122,10 +188,61 @@ unboostedoutputsperhospitalall_omega180 = let
     )    
 end
 
-plotchains(unboostedoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
+unboostedoutputsperhospitalall_omega180_forcepsi0 = let 
+    @unpack unboostedsimulation = simulations
+    unboosteddf = loadchainsperhospitaldf(
+        "fittedvalues_unboostedsimulationperhospital_omega_0.00556"; 
+        jseries=jseriesall, omega=0.00556
+    )
+    for i ∈ axes(unboosteddf, 1) 
+        unboosteddf.ψ[i] = 0.0 
+    end
+
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        unboostedsimulation, finaldata, unboosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )    
+end
+
+raweffectofboosting = zeros(10_000, nhospitals)
+for i ∈ 1:10_000, j ∈ 1:nhospitals 
+    boosted = sample(unboostedoutputsperhospitalall_omega180["totaldiagnoses"][j, :])
+    unboosted = sample(
+        unboostedoutputsperhospitalall_omega180_forcepsi0["totaldiagnoses"][j, :]
+    )
+    raweffectofboosting[i, j] = boosted - unboosted 
+end
+
+medianeffectofboosting = [ quantile(raweffectofboosting[:, j], 0.5) for j ∈ 1:nhospitals ]
+lceffectofboosting = [ quantile(raweffectofboosting[:, j], 0.05) for j ∈ 1:nhospitals ]
+ucneffectofboosting = [ quantile(raweffectofboosting[:, j], 0.95) for j ∈ 1:nhospitals ]
 
 unboostedtotalsperhospitalall_omega180fig = plotoutputs(
     unboostedoutputsperhospitalall_omega180
+)
+
+ax2 = Axis(unboostedtotalsperhospitalall_omega180fig[2, 1])
+scatter!(
+    ax2, 
+    unboostedoutputsperhospitalall_omega180["totalinfections"], 
+    medianeffectofboosting; 
+    color=:blue, markersize=3
+)
+rangebars!(
+    ax2, 
+    unboostedoutputsperhospitalall_omega180["totalinfections"], 
+    lceffectofboosting, 
+    ucneffectofboosting; 
+    color=( :blue, 0.1 ),
+)
+
+unboostedtotalsperhospitalall_omega180fig
+
+safesave(
+    plotsdir("unboostedtotalsperhospitalall_omega180fig.svg"), 
+    unboostedtotalsperhospitalall_omega180fig
 )
 
 
@@ -246,11 +363,68 @@ boostedoutputsperhospitalall_omega180 = let
         dateid=:t
     )    
 end
-
+#=
 plotchains(boostedoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
 
 boostedtotalsperhospitalall_omega180fig = plotoutputs(
     boostedoutputsperhospitalall_omega180
+)
+=#
+boostedoutputsperhospitalall_omega180_forcepsi0 = let 
+    @unpack boostedsimulation = simulations
+    boosteddf = loadchainsperhospitaldf(
+        "fittedvalues_boostedsimulationperhospital_omega_0.00556"; 
+        jseries=jseriesall, omega=0.00556
+    )
+    for i ∈ axes(boosteddf, 1) 
+        boosteddf.ψ[i] = 0.0 
+    end
+
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(
+        boostedsimulation, finaldata, boosteddf, vaccinated, jseriesall; 
+        dateid=:t
+    )      
+end
+
+raweffectofboosting = zeros(10_000, nhospitals)
+for i ∈ 1:10_000, j ∈ 1:nhospitals 
+    boosted = sample(boostedoutputsperhospitalall_omega180["totaldiagnoses"][j, :])
+    unboosted = sample(
+        boostedoutputsperhospitalall_omega180_forcepsi0["totaldiagnoses"][j, :]
+    )
+    raweffectofboosting[i, j] = (boosted - unboosted) / boosted 
+end
+
+medianeffectofboosting = [ quantile(raweffectofboosting[:, j], 0.5) for j ∈ 1:nhospitals ]
+lceffectofboosting = [ quantile(raweffectofboosting[:, j], 0.05) for j ∈ 1:nhospitals ]
+ucneffectofboosting = [ quantile(raweffectofboosting[:, j], 0.95) for j ∈ 1:nhospitals ]
+
+boostedtotalsperhospitalall_omega180fig = plotoutputs(
+    boostedoutputsperhospitalall_omega180
+)
+
+ax2 = Axis(boostedtotalsperhospitalall_omega180fig[2, 1])
+scatter!(
+    ax2, 
+    boostedoutputsperhospitalall_omega180["totalinfections"], 
+    medianeffectofboosting; 
+    color=:blue, markersize=3
+)
+rangebars!(
+    ax2, 
+    boostedoutputsperhospitalall_omega180["totalinfections"], 
+    lceffectofboosting, 
+    ucneffectofboosting; 
+    color=( :blue, 0.1 ),
+)
+
+boostedtotalsperhospitalall_omega180fig
+
+safesave(
+    plotsdir("boostedtotalsperhospitalall_omega180fig.svg"), 
+    boostedtotalsperhospitalall_omega180fig
 )
 
 
@@ -332,8 +506,70 @@ end
 
 plotchains(dataoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
 
-dataoutputsperhospital_omega180fig = plotoutputs(dataoutputsperhospital_omega180)
+dataoutputsperhospital_omega180_forcepsi0 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    for i ∈ axes(datadf, 1) 
+        datadf.ψ[i] = 0.0 
+    end
 
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseries; )    
+ 
+end
+
+dataoutputsperhospital_omega180fig = let 
+    raweffectofboosting = zeros(
+        size(dataoutputsperhospital_omega180["totaldiagnoses"], 2), 
+        length(jseries)
+    )
+    for i ∈ axes(raweffectofboosting, 1), j ∈ eachindex(jseries) 
+        boosted = dataoutputsperhospital_omega180["totaldiagnoses"][j, i]
+        unboosted = dataoutputsperhospital_omega180_forcepsi0["totaldiagnoses"][j, i]
+        raweffectofboosting[i, j] = (boosted - unboosted) #/ boosted
+    end
+
+    medianeffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.5) 
+        for j ∈ eachindex(jseries) 
+    ]
+    lceffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.05) 
+        for j ∈ eachindex(jseries) 
+    ]
+    ucneffectofboosting = [ 
+        quantile(raweffectofboosting[:, j], 0.95) 
+        for j ∈ eachindex(jseries) 
+    ]
+
+    fig = Figure(; size=( 400, 500 ))
+    ax1 = Axis(fig[1, 1])
+    ax2 = Axis(fig[2, 1])
+    
+    plotoutputs!(ax1, dataoutputsperhospital_omega180)
+    #plotoutputs!(ax2, dataoutputsperhospital_omega180_forcepsi0)
+
+    scatter!(
+        ax2, 
+        dataoutputsperhospital_omega180["totalinfections"], 
+        medianeffectofboosting; 
+        color=:blue, markersize=3
+    )
+    rangebars!(
+        ax2, 
+        dataoutputsperhospital_omega180["totalinfections"], 
+        lceffectofboosting, 
+        ucneffectofboosting; 
+        color=( :blue, 0.1 ),
+    )
+
+    fig
+end
+
+plothospitaloutputs(dataoutputsperhospital_omega180; jseries, suppliedextra=false)
 
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
 
@@ -344,44 +580,143 @@ dataoutputsperhospital_omega100 = let
     )
     # remove chain that did not mix with others 
     #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
-    processoutputsperhospital(
-        finaldata, datadf, vaccinated, jseries; 
-        dateid=:t
-    )    
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseries; )    
 end
-
+#=
 plotchains(dataoutputsperhospital_omega100["chaindf"]; size=( 400, 4800 ))
 
 dataoutputsperhospital_omega100fig = plotoutputs(dataoutputsperhospital_omega100)
+=#
+dataoutputsperhospital_omega100_forcepsi0 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.01"; 
+        jseries, omega=0.01
+    )
+    for i ∈ axes(datadf, 1) 
+        datadf.ψ[i] = 0.0 
+    end
+
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseries; )    
+ 
+end
+
+raweffectofboosting = zeros(10_000, length(jseries))
+for i ∈ 1:10_000, j ∈ eachindex(jseries) 
+    boosted = sample(dataoutputsperhospital_omega100["totaldiagnoses"][j, :])
+    unboosted = sample(dataoutputsperhospital_omega100_forcepsi0["totaldiagnoses"][j, :])
+    raweffectofboosting[i, j] = (boosted - unboosted) / boosted
+end
+
+medianeffectofboosting = [ quantile(raweffectofboosting[:, j], 0.5) for j ∈ eachindex(jseries) ]
+lceffectofboosting = [ quantile(raweffectofboosting[:, j], 0.05) for j ∈ eachindex(jseries) ]
+ucneffectofboosting = [ quantile(raweffectofboosting[:, j], 0.95) for j ∈ eachindex(jseries) ]
+
+dataoutputsperhospital_omega100fig = plotoutputs(dataoutputsperhospital_omega100)
+
+ax2 = Axis(dataoutputsperhospital_omega100fig[2, 1])
+scatter!(
+    ax2, 
+    dataoutputsperhospital_omega100["totalinfections"], 
+    medianeffectofboosting; 
+    color=:blue, markersize=3
+)
+rangebars!(
+    ax2, 
+    dataoutputsperhospital_omega100["totalinfections"], 
+    lceffectofboosting, 
+    ucneffectofboosting; 
+    color=( :blue, 0.1 ),
+)
+
+dataoutputsperhospital_omega100fig
+
+safesave(
+    plotsdir("dataoutputsperhospital_omega100fig.svg"), dataoutputsperhospital_omega100fig
+)
 
 
 # hospital-specific parameters for all hospitals, unboosted immunity lasts 180 days
 
+jseriesallhospitals = 1:nhospitals
+
 dataoutputsperhospitalall_omega180 = let 
     datadf = loadchainsperhospitaldf(
         "fittedvalues_coviddataperhospital_omega_0.00556"; 
-        jseries=jseriesall, omega=0.00556
+        jseries=jseriesallhospitals, omega=0.00556
     )
     # remove chain that did not mix with others 
     #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
-    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesall)    
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesallhospitals)    
 end
-
+#=
 plotchains(dataoutputsperhospitalall_omega180["chaindf"]; size=( 400, 4800 ))
 
 dataoutputsperhospitalall_omega180fig = plotoutputs(dataoutputsperhospitalall_omega180)
+=#
+dataoutputsperhospitalall_omega180_forcepsi0 = let 
+    @unpack boostedsimulation = simulations
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_omega_0.00556"; 
+        jseries=jseriesallhospitals, omega=0.00556
+    )
+    for i ∈ axes(datadf, 1) 
+        datadf.ψ[i] = 0.0 
+    end
+
+    # remove chain that did not mix with others 
+    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesallhospitals)    
+ 
+end
+
+raweffectofboosting = zeros(10_000, nhospitals)
+for i ∈ 1:10_000, j ∈ 1:nhospitals 
+    boosted = sample(dataoutputsperhospitalall_omega180["totaldiagnoses"][j, :])
+    unboosted = sample(dataoutputsperhospitalall_omega180_forcepsi0["totaldiagnoses"][j, :])
+    raweffectofboosting[i, j] = boosted - unboosted 
+end
+
+medianeffectofboosting = [ quantile(raweffectofboosting[:, j], 0.5) for j ∈ 1:nhospitals ]
+lceffectofboosting = [ quantile(raweffectofboosting[:, j], 0.05) for j ∈ 1:nhospitals ]
+ucneffectofboosting = [ quantile(raweffectofboosting[:, j], 0.95) for j ∈ 1:nhospitals ]
+
+dataoutputsperhospitalall_omega180fig = plotoutputs(dataoutputsperhospitalall_omega180)
+
+ax2 = Axis(dataoutputsperhospitalall_omega180fig[2, 1])
+scatter!(
+    ax2, 
+    dataoutputsperhospitalall_omega180["totalinfections"], 
+    medianeffectofboosting; 
+    color=:blue, markersize=3
+)
+rangebars!(
+    ax2, 
+    dataoutputsperhospitalall_omega180["totalinfections"], 
+    lceffectofboosting, 
+    ucneffectofboosting; 
+    color=( :blue, 0.1 ),
+)
+
+dataoutputsperhospitalall_omega180fig
+
+safesave(
+    plotsdir("dataoutputsperhospitalall_omega180fig.svg"), 
+    dataoutputsperhospitalall_omega180fig
+)
 
 
 # hospital-specific parameters for all hospitals, unboosted immunity lasts 100 days
 
-bdataoutputsperhospitalall_omega100 = let 
+dataoutputsperhospitalall_omega100 = let 
     datadf = loadchainsperhospitaldf(
         "fittedvalues_coviddataperhospital_omega_0.01"; 
-        jseries=jseriesall, omega=0.01
+        jseries=jseriesallhospitals, omega=0.01
     )
     # remove chain that did not mix with others 
     #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
-    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesall)    
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseriesallhospitals)    
 end
 
 plotchains(dataoutputsperhospitalall_omega100["chaindf"]; size=( 400, 4800 ))
@@ -591,9 +926,16 @@ rangebars!(
     medianbetas[:βhucris]; 
     color=( :blue, 0.1 ),
 )
-lines!(axs2[2], [ extrema([ b[1] for b ∈ allbetas ])... ], [ extrema([ b[1] for b ∈ allbetas ])... ])
+lines!(
+    axs2[2], 
+    [ extrema([ b[1] for b ∈ allbetas ])... ], 
+    [ extrema([ b[1] for b ∈ allbetas ])... ])
 
-scatter!(axs2[3], [ b[2] for b ∈ allbetas ], medianbetas[:βpmedians]; color=:blue, markersize=3)
+
+scatter!(
+    axs2[3], [ b[2] for b ∈ allbetas ], medianbetas[:βpmedians]; 
+    color=:blue, markersize=3
+)
 rangebars!(
     axs2[3], 
     [ b[2] for b ∈ allbetas ], 
@@ -601,7 +943,11 @@ rangebars!(
     medianbetas[:βpucris]; 
     color=( :blue, 0.1 ),
 )
-lines!(axs2[3], [ extrema([ b[2] for b ∈ allbetas ])... ], [ extrema([ b[2] for b ∈ allbetas ])... ])
+lines!(
+    axs2[3], 
+    [ extrema([ b[2] for b ∈ allbetas ])... ], 
+    [ extrema([ b[2] for b ∈ allbetas ])... ]
+)
 
 
 linkxaxes!(axs1...)
