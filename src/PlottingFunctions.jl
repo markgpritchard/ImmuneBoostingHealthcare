@@ -84,10 +84,16 @@ function plotoutputs!(ax::Axis, outputs)
     )
 end
 
-function plothospitaloutputs(outputs; firstplot=1, jseries=firstplot:(firstplot + 25), suppliedextra=true)
+function plothospitaloutputs(
+    outputs; 
+    firstplot=1, jseries=firstplot:(firstplot + 25), 
+    size=( 800, 800 ),
+    xticks=Makie.automatic,
+    suppliedextra=true,
+)
     # default for 25 plots 
-    fig = Figure()
-    axs = [ Axis(fig[i, j]) for i ∈ 1:5, j ∈ 1:5 ]
+    fig = Figure(; size)
+    axs = [ Axis(fig[i, j]; xticks) for i ∈ 1:5, j ∈ 1:5 ]
     plotind = 0 
     for (j, code) ∈ enumerate(unique(outputs["data"].Code))
         j ∉ jseries && continue
@@ -103,11 +109,37 @@ function plothospitaloutputs(outputs; firstplot=1, jseries=firstplot:(firstplot 
                 color=( :blue, 0.1 )
             )
         end
-        formataxis!(
-            axs[plotind]; 
-            hidespines=( :r, :t, :l, :b, ), 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-        )
+        if j <= 19 
+            if (j - 1) / 5 == round(Int, (j - 1) / 5)
+                formataxis!(
+                    axs[plotind]; 
+                    hidespines=( :r, :t, :b, ), 
+                    hidex=true, hidexticks=true,  
+                )
+            else
+                formataxis!(
+                    axs[plotind]; 
+                    hidespines=( :r, :t, :l, :b, ), 
+                    hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+                )
+            end
+        else
+            if (j - 1) / 5 == round(Int, (j - 1) / 5)
+                formataxis!(
+                    axs[plotind]; 
+                    hidespines=( :r, :t ), 
+                    hidex=true,
+                )
+            else
+                formataxis!(
+                    axs[plotind]; 
+                    hidespines=( :r, :t, :b, ), 
+                    hidey=true, hideyticks=true, 
+                    hidex=true,
+                )
+            end
+        end
+        
         scatter!(
             axs[plotind], 
             outputs["data"].t[inds], 
@@ -115,6 +147,12 @@ function plothospitaloutputs(outputs; firstplot=1, jseries=firstplot:(firstplot 
             color=:black, markersize=3,
         )
     end
+
+    Label(fig[1:5, 0], "Prevalence"; rotation=π/2, tellheight=false)
+    Label(fig[6, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+
+    colgap!(fig.layout, 1, 5)
+    rowgap!(fig.layout, 5, 5)
     
     fig
 end

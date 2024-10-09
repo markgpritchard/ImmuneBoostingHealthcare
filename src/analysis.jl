@@ -490,12 +490,39 @@ function predictdiagnoses(
     return diagnoses
 end
 
-function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ))
+function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ), daterange=automatic)
     predicteddiagnoses = predictdiagnoses(args...)
     totaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2), size(predicteddiagnoses, 3))
     mediantotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
     lcitotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
     ucitotaldiagnoses = zeros(Float64, size(predicteddiagnoses, 2))
+    #for i ∈ axes(predicteddiagnoses, 2)
+    #    for j ∈ axes(predicteddiagnoses, 3)
+    #        totaldiagnoses[i, j] = sum(@view predicteddiagnoses[:, i, j]) / 10
+    #    end
+    #    mediantotaldiagnoses[i] = quantile(totaldiagnoses[i, :], 0.5)
+    #    lcitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[1])
+    #    ucitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[2])
+    #end
+    _predicttotaldiagnosesloop!(
+        predicttotaldiagnoses, totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses,
+        predicteddiagnoses, daterange; 
+        cri
+    )
+    return (
+        totaldiagnoses=totaldiagnoses, 
+        mediantotaldiagnoses=mediantotaldiagnoses, 
+        lcitotaldiagnoses=lcitotaldiagnoses, 
+        predicteddiagnoses=predicteddiagnoses, 
+        ucitotaldiagnoses=ucitotaldiagnoses,
+    )
+end
+
+function _predicttotaldiagnosesloop!(
+    predicttotaldiagnoses, totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses,
+    predicteddiagnoses, ::Automatic; 
+    cri=( 0.05, 0.95 )
+)
     for i ∈ axes(predicteddiagnoses, 2)
         for j ∈ axes(predicteddiagnoses, 3)
             totaldiagnoses[i, j] = sum(@view predicteddiagnoses[:, i, j]) / 10
@@ -504,13 +531,21 @@ function predicttotaldiagnoses(args...; cri=( 0.05, 0.95 ))
         lcitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[1])
         ucitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[2])
     end
-    return (
-        totaldiagnoses=totaldiagnoses, 
-        mediantotaldiagnoses=mediantotaldiagnoses, 
-        lcitotaldiagnoses=lcitotaldiagnoses, 
-        predicteddiagnoses=predicteddiagnoses, 
-        ucitotaldiagnoses=ucitotaldiagnoses,
-    )
+end
+
+function _predicttotaldiagnosesloop!(
+    predicttotaldiagnoses, totaldiagnoses, mediantotaldiagnoses, lcitotaldiagnoses, ucitotaldiagnoses,
+    predicteddiagnoses, daterange::AbstractVector; 
+    cri=( 0.05, 0.95 )
+)
+    for i ∈ axes(predicteddiagnoses, 2)
+        for j ∈ axes(predicteddiagnoses, 3)
+            totaldiagnoses[i, j] = sum(@view predicteddiagnoses[daterange, i, j]) / 10
+        end
+        mediantotaldiagnoses[i] = quantile(totaldiagnoses[i, :], 0.5)
+        lcitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[1])
+        ucitotaldiagnoses[i] = quantile(totaldiagnoses[i, :], cri[2])
+    end
 end
 
 function calculatebetah(df, vpd, psb, i, j) 
@@ -644,7 +679,7 @@ end
 
 function processoutputsperhospital(
     data::DataFrame, coviddata::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
-    dateid=:Date
+    dateid=:Date, daterange=automatic,
 )
     # `data` can be the covid data or simulated data. `coviddata` must be the covid data
     nhospitals = counthospitals(data)
@@ -655,7 +690,8 @@ function processoutputsperhospital(
     stringency = coviddata.StringencyIndex_Average[1:ndates]
     community = data.weeklycases[1:ndates] ./ 56_000_000
     boostpredictions = predicttotaldiagnoses(
-        chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, jseries
+        chaindf, patients, vaccinated, community, vpd, psb, stringency, ndates, jseries;
+        daterange,
     )
     @unpack medianbetah, lcibetah, ucibetah, medianbetap, lcibetap, ucibetap = calculatebetas(
         chaindf, vpd, psb, nhospitals

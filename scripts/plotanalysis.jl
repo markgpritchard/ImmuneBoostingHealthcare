@@ -23,7 +23,7 @@ plothospitaloutputs(unboostedoutputs; firstplot=76)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Simulations without natural immune boosting
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+#=
 # no hospital-specific parameters, unboosted immunity lasts 180 days
 
 unboostedoutputs_omega180 = let 
@@ -56,7 +56,7 @@ plotchains(unboostedoutputs_omega100["chaindf"])
 
 unboostedtotals_omega100fig = plotoutputs(unboostedoutputs_omega100)
 
-
+=#
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
 
 jseries = [
@@ -148,7 +148,7 @@ end
 
 unboostedtotalsperhospital_omega180fig = plotoutputs(unboostedoutputsperhospital_omega180)
 
-
+#=
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
 
 unboostedoutputsperhospital_omega100 = let 
@@ -305,7 +305,7 @@ plotchains(boostedoutputs_omega100["chaindf"])
 
 boostedtotals_omega100fig = plotoutputs(boostedoutputs_omega100)
 
-
+=#
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
 
 boostedoutputsperhospital_omega180 = let 
@@ -326,7 +326,7 @@ plotchains(boostedoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
 
 boostedtotalsperhospital_omega180fig = plotoutputs(boostedoutputsperhospital_omega180)
 
-
+#=
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
 
 boostedoutputsperhospital_omega100 = let 
@@ -449,7 +449,7 @@ plotchains(boostedoutputsperhospitalall_omega100["chaindf"]; size=( 400, 4800 ))
 boostedtotalsperhospitalall_omega100fig = plotoutputs(
     boostedoutputsperhospitalall_omega100
 )
-
+=#
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plots from data
@@ -465,7 +465,7 @@ end
 include("analysedatasetup.jl")
 
 # no hospital-specific parameters, unboosted immunity lasts 180 days
-
+#=
 dataoutputs_omega180 = let 
     datadf = loadchainsdf("fittedvalues_coviddata_omega_0.00556"; omega=0.00556)
     # remove chain that did not mix with others 
@@ -491,7 +491,7 @@ plotchains(dataoutputs_omega100["chaindf"])
 
 dataoutputs_omega100fig = plotoutputs(dataoutputs_omega100)
 
-
+=#
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 180 days
 
 dataoutputsperhospital_omega180 = let 
@@ -500,12 +500,12 @@ dataoutputsperhospital_omega180 = let
         jseries, omega=0.00556
     )
     # remove chain that did not mix with others 
-    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
     processoutputsperhospital(finaldata, datadf, vaccinated, jseries)    
 end
 
 plotchains(dataoutputsperhospital_omega180["chaindf"]; size=( 400, 4800 ))
-
+#=
 dataoutputsperhospital_omega180_forcepsi0 = let 
     datadf = loadchainsperhospitaldf(
         "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
@@ -516,7 +516,7 @@ dataoutputsperhospital_omega180_forcepsi0 = let
     end
 
     # remove chain that did not mix with others 
-    #filter!(:chain => x -> x in [ 2, 3 ], unboosteddf)
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
     processoutputsperhospital(finaldata, datadf, vaccinated, jseries; )    
  
 end
@@ -569,10 +569,273 @@ dataoutputsperhospital_omega180fig = let
     fig
 end
 
-plothospitaloutputs(dataoutputsperhospital_omega180; jseries, suppliedextra=false)
+
+# modified vaccination schedule 
+=#
+#=
+hospitaloutputs = plothospitaloutputs(dataoutputsperhospital_omega180; jseries, suppliedextra=false)
+
+safesave(
+    plotsdir("hospitaloutputs.svg"), hospitaloutputs
+)
+=#
+
+function altvaccinatestaff_minus2months(t::Number)
+    if 264 <= t <= 280  # 8 to 24 December 2020
+        return 0.035
+    elseif 285 <= t < 305  # 29 December 2020 to 18 January 2021
+        return 0.055
+    elseif 305 <= t <= 323  # 18 January to 5 February 2021
+        return 0.025
+        # values above give 89% vaccinated by 5 February 2021
+    elseif 531 - 62 <= t <= 621 - 62  # 1 September to 30 November 2021
+        return 0.0125  # 68% boosted over 90 days
+    else 
+        return 0.0
+    end
+end
+
+altvaccinatestaff_minus2months(date::Date) = altvaccinatestaff_minus2months(datetot(date))
+
+altvaccinated_minus2months = [ altvaccinatestaff_minus2months(t) for t ∈ 1:ndates ] 
+
+function altvaccinatestaff_minus1month(t::Number)
+    if 264 <= t <= 280  # 8 to 24 December 2020
+        return 0.035
+    elseif 285 <= t < 305  # 29 December 2020 to 18 January 2021
+        return 0.055
+    elseif 305 <= t <= 323  # 18 January to 5 February 2021
+        return 0.025
+        # values above give 89% vaccinated by 5 February 2021
+    elseif 531 - 31 <= t <= 621 - 31  # 1 September to 30 November 2021
+        return 0.0125  # 68% boosted over 90 days
+    else 
+        return 0.0
+    end
+end
+
+altvaccinatestaff_minus1month(date::Date) = altvaccinatestaff_minus1month(datetot(date))
+
+altvaccinated_minus1month = [ altvaccinatestaff_minus1month(t) for t ∈ 1:ndates ] 
+
+function altvaccinatestaff_plus1month(t::Number)
+    if 264 <= t <= 280  # 8 to 24 December 2020
+        return 0.035
+    elseif 285 <= t < 305  # 29 December 2020 to 18 January 2021
+        return 0.055
+    elseif 305 <= t <= 323  # 18 January to 5 February 2021
+        return 0.025
+        # values above give 89% vaccinated by 5 February 2021
+    elseif 531 + 30 <= t <= 621 + 30  # 1 September to 30 November 2021
+        return 0.0125  # 68% boosted over 90 days
+    else 
+        return 0.0
+    end
+end
+
+altvaccinatestaff_plus1month(date::Date) = altvaccinatestaff_plus1month(datetot(date))
+
+altvaccinated_plus1month = [ altvaccinatestaff_plus1month(t) for t ∈ 1:ndates ] 
+
+function altvaccinatestaff_plus2months(t::Number)
+    if 264 <= t <= 280  # 8 to 24 December 2020
+        return 0.035
+    elseif 285 <= t < 305  # 29 December 2020 to 18 January 2021
+        return 0.055
+    elseif 305 <= t <= 323  # 18 January to 5 February 2021
+        return 0.025
+        # values above give 89% vaccinated by 5 February 2021
+    elseif 531 + 61 <= t <= 621 + 61  # 1 September to 30 November 2021
+        return 0.0125  # 68% boosted over 90 days
+    else 
+        return 0.0
+    end
+end
+
+altvaccinatestaff_plus2months(date::Date) = altvaccinatestaff_plus2months(datetot(date))
+
+altvaccinated_plus2months = [ altvaccinatestaff_plus2months(t) for t ∈ 1:ndates ] 
+#=
+dataoutputsperhospital_omega180dr = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
+    processoutputsperhospital(finaldata, datadf, vaccinated, jseries; daterange=470:831)    
+end
+=#
+diagnosesafterjuly = predicttotaldiagnoses(
+    dataoutputsperhospital_omega180["chaindf"], 
+    dataoutputsperhospital_omega180["patients"], 
+    vaccinated, 
+    dataoutputsperhospital_omega180["community"], 
+    dataoutputsperhospital_omega180["vpd"], 
+    dataoutputsperhospital_omega180["psb"], 
+    dataoutputsperhospital_omega180["stringency"], 
+    dataoutputsperhospital_omega180["ndates"], 
+    jseries;
+    daterange=470:831,
+)
+
+dataoutputsperhospital_omega180_m2 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
+    processoutputsperhospital(finaldata, datadf, altvaccinated_minus2months, jseries)    
+end
+
+dataoutputsperhospital_omega180_m1 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
+    processoutputsperhospital(finaldata, datadf, altvaccinated_minus1month, jseries)    
+end
+
+dataoutputsperhospital_omega180_p1 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
+    processoutputsperhospital(finaldata, datadf, altvaccinated_plus1month, jseries)    
+end
+
+dataoutputsperhospital_omega180_p2 = let 
+    datadf = loadchainsperhospitaldf(
+        "fittedvalues_coviddataperhospital_subset_omega_0.00556"; 
+        jseries, omega=0.00556
+    )
+    # remove chain that did not mix with others 
+    filter!(:chain => x -> x in [ 2, 3 ], datadf)
+    processoutputsperhospital(finaldata, datadf, altvaccinated_plus2months, jseries)    
+end
+
+changevaccinationdatefig = let 
+    fig = Figure(; size=( 500, 300 ))
+    #ax1 = Axis(fig[1, 1])
+    ax2 = Axis(fig[1, 1])
+    #ax3 = Axis(fig[1, 2])    
+    ax4 = Axis(fig[1, 2])
+    #ax5 = Axis(fig[1, 3])
+    ax6 = Axis(fig[1, 3])    
+    #ax7 = Axis(fig[1, 4])
+    ax8 = Axis(fig[1, 4])
+    
+    #plotoutputs!(ax1, dataoutputsperhospital_omega180_m2)
+    scatter!(
+        ax2, 
+        diagnosesafterjuly.mediantotaldiagnoses, 
+        (
+            100 *
+            (
+                dataoutputsperhospital_omega180_m2["mediantotaldiagnoses"] .- 
+                dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+            ) ./
+            diagnosesafterjuly.mediantotaldiagnoses #diagnosesafterjuly.mediantotaldiagnoses
+        ); 
+        color=:blue, markersize=3
+    )
+    #plotoutputs!(ax3, dataoutputsperhospital_omega180_m1)
+    scatter!(
+        ax4, 
+        diagnosesafterjuly.mediantotaldiagnoses, #dataoutputsperhospital_omega180["mediantotaldiagnoses"], 
+        (
+            100 *
+            (
+                dataoutputsperhospital_omega180_m1["mediantotaldiagnoses"] .- 
+                dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+            ) ./
+            diagnosesafterjuly.mediantotaldiagnoses #dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+        ); 
+        color=:blue, markersize=3
+    )
+    #plotoutputs!(ax5, dataoutputsperhospital_omega180_p2)
+    scatter!(
+        ax6, 
+        diagnosesafterjuly.mediantotaldiagnoses, #dataoutputsperhospital_omega180["mediantotaldiagnoses"], 
+        (
+            100 * 
+            (
+                dataoutputsperhospital_omega180_p1["mediantotaldiagnoses"] .- 
+                dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+            ) ./
+            diagnosesafterjuly.mediantotaldiagnoses #dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+        ); 
+        color=:blue, markersize=3
+    )
+    #plotoutputs!(ax7, dataoutputsperhospital_omega180_p2)
+    scatter!(
+        ax8, 
+        diagnosesafterjuly.mediantotaldiagnoses, #dataoutputsperhospital_omega180["mediantotaldiagnoses"], 
+        (
+            100 * 
+            (
+                dataoutputsperhospital_omega180_p2["mediantotaldiagnoses"] .- 
+                dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+            ) ./
+            dataoutputsperhospital_omega180["mediantotaldiagnoses"]
+        ); 
+        color=:blue, markersize=3
+    )
+
+    for ax ∈ [ ax2, ax4, ax6, ax8 ]
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+    end
+
+    linkyaxes!(ax2, ax4, ax6, ax8)
+    #formataxis!(ax1; hidex=true, hidexticks=true, hidespines=( :b, :t, :r ) )
+    formataxis!(ax2)
+
+    #for ax ∈ [ ax3, ax5, ax7 ]
+    #    formataxis!(
+    #        ax; 
+    #        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+    #        hidespines=( :l, :b, :t, :r ) 
+    #    )
+    #end
+
+    for ax ∈ [ ax4, ax6, ax8 ]
+        formataxis!(
+            ax; 
+            hidey=true, hideyticks=true, 
+            hidespines=( :l, :t, :r ) 
+        )
+    end
+
+    Label(fig[0, 1], "2 months earlier"; fontsize=11.84, tellwidth=false)
+    Label(fig[0, 2], "1 month earlier"; fontsize=11.84, tellwidth=false)
+    Label(fig[0, 3], "1 month later"; fontsize=11.84, tellwidth=false)
+    Label(fig[0, 4], "2 months later"; fontsize=11.84, tellwidth=false)
+    Label(
+        fig[1, 0], "Proportional change in infections, %"; 
+        fontsize=11.84, rotation=π/2, tellheight=false
+    )
+    Label(
+        fig[2, 1:4], "Mean infections per healthcare worker, after July 2021"; 
+        fontsize=11.84, tellwidth=false
+    )
+
+    colgap!(fig.layout, 1, 5)
+    for r ∈ [ 1, 2 ] rowgap!(fig.layout, r, 5) end
+
+    fig 
+end
+
+safesave(
+    plotsdir("changevaccinationdatefig.svg"), changevaccinationdatefig
+)
 
 # hospital-specific parameters for a subset of hospitals, unboosted immunity lasts 100 days
-
+#=
 dataoutputsperhospital_omega100 = let 
     datadf = loadchainsperhospitaldf(
         "fittedvalues_coviddataperhospital_subset_omega_0.01"; 
@@ -1155,3 +1418,5 @@ lines!(ax, [ (1 - (1 - exp(-x)))^0 for x ∈ 0:0.01:2 ])
 
 
 fig
+
+=#
