@@ -24,15 +24,25 @@ else
     ω = 0.01
 end
 
-if isfile(datadir("sims", "$sim.jld2"))
-    simulations = load(datadir("sims", "$sim.jld2"))
+if isfile(datadir("sims", "unboostedsimulation.jld2"))
+    unboostedsimulation = load(datadir("sims", "unboostedsimulation.jld2"))
+else 
+    include("generatesimulations.jl")
+end
+
+if isfile(datadir("sims", "boostedsimulation.jld2"))
+    boostedsimulation = load(datadir("sims", "boostedsimulation.jld2"))
 else 
     include("generatesimulations.jl")
 end
 
 ## no boosting 
 
-simulation = simulations[sim]
+if sim == "unboostedsimulation"
+    simulation = unboostedsimulation["unboostedsimulation"]
+else 
+    simulation = boostedsimulation["boostedsimulation"]
+end
 
 nhospitals = counthospitals(simulation)
 ndates = countdates(simulation; dateid=:t)
