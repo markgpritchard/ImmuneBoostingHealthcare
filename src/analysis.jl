@@ -272,7 +272,7 @@ end
     )
     betaps ~ MvNormal(
         [ α1 + α2 * vpd[j] + α3 * psb[j] for j ∈ jseries ], 
-        hsigma2
+        psigma2
     )
 
 
@@ -678,7 +678,7 @@ function processoutputs(data::DataFrame, chaindf::DataFrame, vaccinated::Vector;
 end
 
 function processoutputsperhospital(
-    data::DataFrame, coviddata::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    data::DataFrame, coviddata::DataFrame, chaindf, vaccinated::Vector, jseries; 
     dateid=:Date, daterange=automatic,
 )
     # `data` can be the covid data or simulated data. `coviddata` must be the covid data
@@ -730,8 +730,40 @@ function processoutputsperhospital(
 end
 
 function processoutputsperhospital(
-    data::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    data::DataFrame, chaindf, vaccinated::Vector, jseries; 
     kwargs...
 )
     return processoutputsperhospital(data, data, chaindf, vaccinated, jseries; kwargs...)
+end
+
+function processoutputsperhospital(
+    data::DataFrame, 
+    coviddata::DataFrame, 
+    filenamestart::AbstractString, 
+    vaccinated::Vector, 
+    jseries; 
+    forcepsi=automatic, psi=automatic, selectchains=automatic, omega=automatic, kwargs...
+)
+    chaindf = loadchainsperhospitaldf(filenamestart; jseries, psi, omega)
+    _processoutputsperhospitalselectchains!(chaindf, selectchains)
+    _processoutputsperhospitalforcepsi!(chaindf, forcepsi)
+    return processoutputsperhospital(data, coviddata, chaindf, vaccinated, jseries; kwargs...)
+end
+
+_processoutputsperhospitalselectchains!(::Any, ::Automatic) = nothing
+
+function _processoutputsperhospitalselectchains!(df, selectchains::Number)
+    _processoutputsperhospitalselectchains!(df, [ selectchains ])
+end
+
+function _processoutputsperhospitalselectchains!(df, selectchains::Vector{<:Number}) 
+    filter!(:chain => x -> x ∈ selectchains, df)
+end
+
+_processoutputsperhospitalforcepsi!(::Any, ::Automatic) = nothing
+
+function _processoutputsperhospitalforcepsi!(df, forcepsi::Number)
+    for i ∈ axes(df, 1) 
+        df.ψ[i] = forcepsi 
+    end
 end

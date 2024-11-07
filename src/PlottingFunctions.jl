@@ -6,6 +6,7 @@ module PlottingFunctions
 
 using DrWatson
 using CairoMakie, DataFrames
+import ImmuneBoostingHealthcare: Automatic, automatic
 
 export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, formataxis!, formataxishidespines!, 
     labelplots!, plotchains, plothospitaloutputs, plotoutputs, plotoutputs!, setorigin!, 
@@ -13,12 +14,19 @@ export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, formataxis!, formataxishidesp
 
 # Consistent colour scheme across plots 
 
-const COLOUR_S = :blue
-const COLOUR_I = :darkgoldenrod1
-const COLOUR_R = :seagreen4
-const COLOURVECTOR = [ 
-    COLOUR_S, COLOUR_I, COLOUR_R, :plum, :brown2, :dodgerblue3, :skyblue2, :lightgray 
+const COLOURVECTOR = [
+    RGBf(33 / 255, 145 / 255, 140 / 255),
+    RGBf(68 / 255, 57 / 255, 131 / 255),
+    RGBf(253 / 255, 231 / 255, 37 / 255),
+    RGBf(53 / 255, 183 / 255, 121 / 255),
+    RGBf(49 / 255, 104 / 255, 142 / 255),
+    RGBf(68 / 255, 1 / 255, 84 / 255),
+    RGBf(144 / 255, 215 / 255, 67 / 255),
 ]
+
+const COLOUR_S = COLOURVECTOR[1]
+const COLOUR_I = COLOURVECTOR[2]
+const COLOUR_R = COLOURVECTOR[3]
 
 # outputs from MCMC that are not plotted 
 const _NOPLOTNAMES = [ 
@@ -27,8 +35,8 @@ const _NOPLOTNAMES = [
     "tree_depth", "numerical_error", "step_size", "nom_step_size"
 ]
 
-function plotchains(data::DataFrame; size=( 400, 1200 ), kwargs...)
-    @unpack colnames, plotnames_ind = _processplotchains(data; kwargs...)
+function plotchains(data::DataFrame; size=( 400, 1200 ), columns=automatic, kwargs...)
+    @unpack colnames, plotnames_ind = _processplotchains(data, columns; kwargs...)
         
     fig = Figure(; size)
     ax = [ Axis(fig[i, 1]) for i ∈ eachindex(plotnames_ind) ]
@@ -43,9 +51,13 @@ function plotchains(data::DataFrame; size=( 400, 1200 ), kwargs...)
     return fig
 end
 
-function _processplotchains(data; logdensity="log_density")
-    # "log_density" is the label given by `Pigeons` output. Turing labels it "lp".
+function _processplotchains(data, ::Automatic; kwargs...)
     colnames = names(data)
+    return _processplotchains(data, colnames; kwargs...)
+end
+
+function _processplotchains(data, colnames; logdensity="log_density")
+    # "log_density" is the label given by `Pigeons` output. Turing labels it "lp".
     lp_ind = findall(x -> x == logdensity, colnames)
     _plotnames_ind = findall(x -> x ∉ _NOPLOTNAMES, colnames)
     plotnames_ind = [ lp_ind; _plotnames_ind ]
@@ -68,19 +80,20 @@ function plotoutputs!(ax::Axis, outputs)
         ax, 
         outputs["totalinfections"], 
         outputs["mediantotaldiagnoses"]; 
-        color=:blue, markersize=3
+        color=COLOURVECTOR[1], markersize=3
     )
     rangebars!(
         ax, 
         outputs["totalinfections"], 
         outputs["lcitotaldiagnoses"], 
         outputs["ucitotaldiagnoses"]; 
-        color=( :blue, 0.1 ),
+        color=( COLOURVECTOR[1], 0.1 ),
     )
     lines!(
         ax, 
         [ extrema(outputs["totalinfections"])... ], 
-        [ extrema(outputs["totalinfections"])... ]
+        [ extrema(outputs["totalinfections"])... ];
+        color=:black,
     )
 end
 
@@ -188,11 +201,15 @@ Most keyword arguments are only available when formatting an `Axis`
 The additional keyword argument `horizontal` is available when formatting a `Colorbar`
     or `Legend`, and sets whether that item should be oriented horizontally.
 """ 
-function formataxis!(axis::Axis, width = 800; 
-        hidespines = ( :r, :t ), hidex = false, hidexticks = false, hidey = false, 
-        hideyticks = false, setorigin = false, setpoint = nothing, trimspines = true
-    )
-    formataxishidespines!(axis, hidespines)
+function formataxis!(
+    axis::Axis, width=800; 
+    hidex=false, hidexticks=false, hidey=false, hideyticks=false, 
+    setorigin=false, setpoint=nothing, hidespines=nothing, trimspines = false
+)
+    if !isnothing(hidespines)
+        @warn "Current preference to avoid using hidespines"
+        formataxishidespines!(axis, hidespines)
+    end
     axis.spinewidth = width / 800
     axis.xtrimspine = trimspines; axis.ytrimspine = trimspines
     axis.xgridvisible = false; axis.ygridvisible = false

@@ -1,8 +1,6 @@
 
 using DrWatson
-
 @quickactivate :ImmuneBoostingHealthcare
-
 using CategoricalArrays, CSV, DataFrames, Dates
 
 
@@ -17,13 +15,8 @@ finaldata = let
     rename!(hospitaldata, Dict(Symbol("Site Code") => "SiteCode"))
     rename!(hospitaldata, Dict(Symbol("Site Type") => "SiteType"))
     rename!(hospitaldata, Dict(Symbol("Site heated volume (m³)") => "HeatedVolumeString"))
-    rename!(
-        hospitaldata, 
-        Dict(
-            Symbol("Single bedrooms for patients with en-suite facilities (No.)") => 
-                "SingleBedsString"
-        )
-    )
+    _sbsymbol = Symbol("Single bedrooms for patients with en-suite facilities (No.)")
+    rename!(hospitaldata, Dict(_sbsymbol => "SingleBedsString"))
     filter!(:SiteType => x -> x[1] == '1' || x[1] == '2', hospitaldata)
     insertcols!(
         hospitaldata,
@@ -223,10 +216,14 @@ finaldata = let
         #println("using $c")
         for i ∈ axes(ldf, 1)
             for v ∈ [ 
-                :CovidBeds, :StaffAbsences, 
-                :CovidPatients, :CovidAbsences, 
-                :PatientsProportion, :StaffProportion, 
-                :weeklycases, :StringencyIndex_Average
+                :CovidBeds, 
+                :StaffAbsences, 
+                :CovidPatients, 
+                :CovidAbsences, 
+                :PatientsProportion, 
+                :StaffProportion, 
+                :weeklycases, 
+                :StringencyIndex_Average
             ]
                 if ismissing(getproperty(ldf, v)[i])
                     getproperty(ldf, v)[i] = 0 
