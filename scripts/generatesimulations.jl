@@ -133,17 +133,17 @@ unboostedsimulation = let
                     sim.StaffR3[i-1] - b_3
                 )
             )
-            w_1 = rand(truncated(Poisson(0.01 * sim.StaffR1[i-1]), 0, sim.StaffR1[i-1]))
+            w_1 = rand(truncated(Poisson(0.03 * sim.StaffR1[i-1]), 0, sim.StaffR1[i-1]))
             w_2 = rand(
                 truncated(
-                    Poisson(0.01 * (sim.StaffR2[i-1] - v_r2)), 
+                    Poisson(0.03 * (sim.StaffR2[i-1] - v_r2)), 
                     0, 
                     sim.StaffR2[i-1] - v_r2 - b_2
                 )
             ) 
             w_3 = rand(
                 truncated(
-                    Poisson(0.01 * (sim.StaffR3[i-1] - v_r3)), 
+                    Poisson(0.03 * (sim.StaffR3[i-1] - v_r3)), 
                     0, 
                     sim.StaffR3[i-1] - v_r3 - b_3
                 )
