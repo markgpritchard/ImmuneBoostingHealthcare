@@ -603,6 +603,178 @@ end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulations with "mid'level" natural immune boosting (ψ = 0.5)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# hospital-specific parameters, unboosted immunity lasts 180 days
+
+midboosteddf_omega180 = loadchainsperhospitaldf(
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556"; 
+    jseries=1:nhospitals, omega=0.00556
+)
+#filter!(:chain => x -> x ∈ [ 2, 3, 4 ], midboosteddf_omega180)
+
+plotchains(
+    midboosteddf_omega180; 
+    columns=[ 
+        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
+        "sigma2", "hsigma2", "psigma2", "log_density" 
+    ]
+)
+
+midboostedoutputsperhospital_omega180 = processoutputsperhospital(
+    midboostedsimulation["boostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    vaccinated, 
+    1:nhospitals; 
+    dateid=:t, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+midboostedoutputsperhospital_omega180_forcepsi0 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    vaccinated, 
+    1:nhospitals; 
+    forcepsi=0.0, dateid=:t, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+midboostedoutputsperhospital_omega180_diagnosesafterjuly = predicttotaldiagnoses(
+    midboostedoutputsperhospital_omega180["chaindf"], 
+    midboostedoutputsperhospital_omega180["patients"], 
+    vaccinated, 
+    midboostedoutputsperhospital_omega180["community"], 
+    midboostedoutputsperhospital_omega180["vpd"], 
+    midboostedoutputsperhospital_omega180["psb"], 
+    midboostedoutputsperhospital_omega180["stringency"], 
+    midboostedoutputsperhospital_omega180["ndates"], 
+    1:nhospitals;
+    daterange=470:831,
+)
+
+midboostedoutputsperhospital_omega180_m2 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    altvaccinated_minus2months, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+midboostedoutputsperhospital_omega180_m1 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    altvaccinated_minus1month, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+midboostedoutputsperhospital_omega180_p1 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    altvaccinated_plus1month, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+midboostedoutputsperhospital_omega180_p2 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.00556", 
+    altvaccinated_plus2months, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.00556, #selectchains=[ 2, 3, 4 ],
+)
+
+
+## hospital-specific parameters, unboosted immunity lasts 100 days
+
+midboosteddf_omega100 = loadchainsperhospitaldf(
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01"; 
+    jseries=1:nhospitals, omega=0.01
+)
+#filter!(:chain => x -> x <= 2, midboosteddf_omega100)
+
+plotchains(
+    midboosteddf_omega100; 
+    columns=[ 
+        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
+        "sigma2", "hsigma2", "psigma2", "log_density" 
+    ]
+)
+
+midboostedoutputsperhospital_omega100 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    vaccinated, 
+    1:nhospitals; 
+    dateid=:t, omega=0.01, #selectchains=[ 1, 2 ],
+)
+
+midboostedoutputsperhospital_omega100_forcepsi0 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    vaccinated, 
+    1:nhospitals; 
+    forcepsi=0.0, dateid=:t, omega=0.01, #selectchains=[ 1, 2 ],
+)
+
+midboostedoutputsperhospital_omega100_diagnosesafterjuly = predicttotaldiagnoses(
+    midboostedoutputsperhospital_omega100["chaindf"], 
+    midboostedoutputsperhospital_omega100["patients"], 
+    vaccinated, 
+    midboostedoutputsperhospital_omega100["community"], 
+    midboostedoutputsperhospital_omega100["vpd"], 
+    midboostedoutputsperhospital_omega100["psb"], 
+    midboostedoutputsperhospital_omega100["stringency"], 
+    midboostedoutputsperhospital_omega100["ndates"], 
+    1:nhospitals;
+    daterange=470:831,
+)
+
+midboostedoutputsperhospital_omega100_m2 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    altvaccinated_minus2months, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.01, #selectchains=[ 1, 2 ],
+)
+
+midboostedoutputsperhospital_omega100_m1 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    altvaccinated_minus1month, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.01,# selectchains=[ 1, 2 ],
+)
+
+midboostedoutputsperhospital_omega100_p1 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    altvaccinated_plus1month, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.01, #selectchains=[ 1, 2 ],
+)
+
+midboostedoutputsperhospital_omega100_p2 = processoutputsperhospital(
+    midboostedsimulation["midboostedsimulation"], 
+    finaldata, 
+    "fittedvalues_midboostedsimulationperhospital_omega_0.01", 
+    altvaccinated_plus2months, 
+    1:nhospitals; 
+    dateid=:t, daterange=470:831, omega=0.01, #selectchains=[ 1, 2 ],
+)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plots from data
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -898,6 +1070,7 @@ omega100changevaccinationdatefig = let
         ga = GridLayout(fig[1, 1])
         gb = GridLayout(fig[2, 1])
         gc = GridLayout(fig[3, 1])
+        gd = GridLayout(fig[4, 1])
         plotcounterfactualvaccine!(
             ga, 
             unboostedoutputsperhospital_omega100_m2, 
@@ -908,6 +1081,14 @@ omega100changevaccinationdatefig = let
         )
         plotcounterfactualvaccine!(
             gb, 
+            midboostedoutputsperhospital_omega100_m2, 
+            midboostedoutputsperhospital_omega100_m1, 
+            midboostedoutputsperhospital_omega100_p1, 
+            midboostedoutputsperhospital_omega100_p2, 
+            midboostedoutputsperhospital_omega100_diagnosesafterjuly
+        )
+        plotcounterfactualvaccine!(
+            gc, 
             boostedoutputsperhospital_omega100_m2, 
             boostedoutputsperhospital_omega100_m1, 
             boostedoutputsperhospital_omega100_p1, 
@@ -915,7 +1096,7 @@ omega100changevaccinationdatefig = let
             boostedoutputsperhospital_omega100_diagnosesafterjuly
         )
         plotcounterfactualvaccine!(
-            gc, 
+            gd, 
             dataoutputsperhospital_omega100_m2, 
             dataoutputsperhospital_omega100_m1, 
             dataoutputsperhospital_omega100_p1, 

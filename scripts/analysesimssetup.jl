@@ -30,6 +30,12 @@ else
     include("generatesimulations.jl")
 end
 
+if isfile(datadir("sims", "midboostedsimulation.jld2"))
+    midboostedsimulation = load(datadir("sims", "midboostedsimulation.jld2"))
+else 
+    include("generatesimulations.jl")
+end
+
 if isfile(datadir("sims", "boostedsimulation.jld2"))
     boostedsimulation = load(datadir("sims", "boostedsimulation.jld2"))
 else 
@@ -40,8 +46,10 @@ end
 
 if sim == "unboostedsimulation"
     simulation = unboostedsimulation["unboostedsimulation"]
-else 
+elseif sim == "boostedsimulation" 
     simulation = boostedsimulation["boostedsimulation"]
+else 
+    simulation = midboostedsimulation["midboostedsimulation"]
 end
 
 nhospitals = counthospitals(simulation)
