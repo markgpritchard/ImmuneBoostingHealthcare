@@ -29,9 +29,9 @@ end
 function estimateeffectofboosting(boosted, unboosted; nhospitals, CrI=[ 0.05, 0.95 ])
     raweffectofboosting = boosted .- unboosted
    
-    medianeffectofboosting = [ quantile(raweffectofboosting[:, j], 0.5) for j ∈ 1:nhospitals ]
-    lceffectofboosting = [ quantile(raweffectofboosting[:, j], CrI[1]) for j ∈ 1:nhospitals ]
-    uceffectofboosting = [ quantile(raweffectofboosting[:, j], CrI[2]) for j ∈ 1:nhospitals ]
+    medianeffectofboosting = [ quantile(raweffectofboosting[j, :], 0.5) for j ∈ 1:nhospitals ]
+    lceffectofboosting = [ quantile(raweffectofboosting[j, :], CrI[1]) for j ∈ 1:nhospitals ]
+    uceffectofboosting = [ quantile(raweffectofboosting[j, :], CrI[2]) for j ∈ 1:nhospitals ]
     
     return @ntuple medianeffectofboosting lceffectofboosting uceffectofboosting 
 end
