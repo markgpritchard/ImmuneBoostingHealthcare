@@ -16,7 +16,6 @@ export
     AbstractParameters, HCWSEIIRRRp, SEIIRRRSp, WXYYZSEIIRRRSp,
     # no exports from `consts.jl`
     # `simulations.jl`
-    betahh, betahp, betaph, betapp, stochasticseiirrrs, stochasticwxyyzseiirrrs,
     vaccinatestaff,
     # `processdata.jl`
     datetot, insertproportions!, ttodate,
