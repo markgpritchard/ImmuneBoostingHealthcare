@@ -14,7 +14,7 @@ include("analysesimssetup.jl")
 function subsetdiagnoses(dataset, vaccinated, jseries=1:dataset["nhospitals"]; daterange)
     return predicttotaldiagnoses(
         dataset["chaindf"], 
-        dataset["patients"], 
+        dataset["patients"], dataobserveddiagnosesafterjuly 
         vaccinated, 
         dataset["community"], 
         dataset["vpd"], 
@@ -44,32 +44,55 @@ end
 
 
 function plotcounterfactualvaccine!(
-    ax::Axis, counterfactual::Vector{<:Real}, originaldata::Vector{<:Real}; 
+    ax::Axis, 
+    counterfactual::Vector{<:Real}, 
+    modelledoriginal::Vector{<:Real}, 
+    originaldata_x::Vector{<:Real}; 
     color=COLOURVECTOR[1], markersize=3,
 )
     scatter!(
-        ax, originaldata, 100 .* (counterfactual .- originaldata) ./ originaldata; 
+        ax, originaldata_x, 100 .* (counterfactual .- modelledoriginal) ./ modelledoriginal; 
         color, markersize,
     )
 end
 
 function plotcounterfactualvaccine!(
-    ax::Axis, counterfactual::Dict{<:AbstractString, <:Any}, originaldata::NamedTuple; 
+    ax::Axis, 
+    counterfactual::Dict{<:AbstractString, <:Any}, 
+    modelledoriginal, 
+    originaldata_x; 
     kwargs...
 )
     plotcounterfactualvaccine!(
-        ax, counterfactual["mediantotaldiagnoses"], originaldata.mediantotaldiagnoses; 
+        ax, counterfactual["mediantotaldiagnoses"], modelledoriginal, originaldata_x; 
         kwargs...
     )
 end
 
 function plotcounterfactualvaccine!(
-    gl::GridLayout, cf_m2, cf_m1, cf_p1, cf_p2, originaldata; 
+    ax::Axis, 
+    counterfactual::Vector{<:Real}, 
+    modelledoriginal::NamedTuple, 
+    originaldata_x; 
+    kwargs...
+)
+    plotcounterfactualvaccine!(
+        ax, counterfactual, modelledoriginal.mediantotaldiagnoses, originaldata_x; 
+        kwargs...
+    )
+end
+
+function plotcounterfactualvaccine!(ax::Axis, counterfactual, originaldata; kwargs...)
+    plotcounterfactualvaccine!(ax, counterfactual, originaldata, originaldata; kwargs...)
+end
+
+function plotcounterfactualvaccine!(
+    gl::GridLayout, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal, originaldata_x; 
     kwargs...
 )
     axs = [ Axis(gl[1, i]) for i ∈ 1:4 ]
     for (ax, cf) ∈ zip(axs, [ cf_m2, cf_m1, cf_p1, cf_p2 ])
-        plotcounterfactualvaccine!(ax, cf, originaldata)
+        plotcounterfactualvaccine!(ax, cf, modelledoriginal, originaldata_x)
     end
     for (i, ax) ∈ enumerate(axs)
         hlines!(ax, 0; color=:black, linestyle=:dot)
@@ -93,10 +116,64 @@ function plotcounterfactualvaccine!(
     for r ∈ [ 1, 2 ] rowgap!(gl, r, 5) end
 end
 
+function plotcounterfactualvaccine!(
+    gl::GridLayout, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal; 
+    kwargs...
+)
+    plotcounterfactualvaccine!(
+        gl, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal, modelledoriginal; 
+        kwargs...
+    )
+end
 
-function calculatemodelleddiagnoses()
+function _cumulativecounterfactualvaccine(
+    counterfactual::Matrix{<:Real}, originaldata::Matrix{<:Real}
+)
+    cumulativedifference = zeros(size(counterfactual))
+    for j ∈ axes(counterfactual, 2)
+        cumulativedifference[:, j] = cumsum(counterfactual[:, j] .- originaldata[:, j])
+    end
+    return cumulativedifference 
+end
 
+function _quantilecumulativecounterfactualvaccine(counterfactual, originaldata; kwargs...)
+    cumulativedifference = _cumulativecounterfactualvaccine(counterfactual, originaldata)
+    return _quantilecumulativecounterfactualvaccine(cumulativedifference; kwargs...)
+end
 
+function _quantilecumulativecounterfactualvaccine(
+    cumulativedifference; 
+    quantiles=[ 0.05, 0.5, 0.95 ]
+)
+    return [ 
+        quantile(cumulativedifference[i, :], quantiles) 
+        for i ∈ axes(cumulativedifference, 1) 
+    ]
+end
+
+function plotcumulativecounterfactualvaccine!(
+    ax, dates, counterfactual::Matrix{<:Real}, originaldata::Matrix{<:Real};
+    quantiles=[ 0.05, 0.5, 0.95 ], kwargs...
+)
+    quantilevalues = _quantilecumulativecounterfactualvaccine(
+        counterfactual, originaldata; 
+        quantiles
+    )
+    plotcumulativecounterfactualvaccine!(ax, dates, quantilevalues; kwargs...)
+end
+
+function plotcumulativecounterfactualvaccine!(
+    ax, dates, quantiles::AbstractVector{<:AbstractVector{<:Real}};
+    color=COLOURVECTOR[1]
+)
+    lines!(ax, dates, [ quantiles[i][2] for i ∈ eachindex(quantiles) ]; color)
+    band!(
+        ax, 
+        dates, 
+        [ quantiles[i][1] for i ∈ eachindex(quantiles) ], 
+        [ quantiles[i][3] for i ∈ eachindex(quantiles) ];
+        color=( color, 0.25),
+    )
 end
 
 
@@ -113,6 +190,17 @@ altvaccinated_plus2months = [ vaccinatestaff(t; boostdateoffset=61) for t ∈ 1:
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Simulations without natural immune boosting
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+unboostedobserveddiagnosesafterjuly = [ 
+    (
+        d = filter(
+            [ :StringCodes, :t ] => (x, y) -> x == c && y ∈ 470:831, 
+            unboostedsimulation["unboostedsimulation"]
+        );
+        sum(d.StaffNewAbsences) ./ d.StaffTotal[1]
+    )
+    for c ∈ unique(unboostedsimulation["unboostedsimulation"].StringCodes)
+]
 
 unboosteddf_omega180 = loadchainsperhospitaldf(
     "fittedvalues_unboostedsimulationperhospital_omega_0.00556"; 
@@ -285,6 +373,17 @@ unboostedoutputsperhospital_omega100_p2 = processoutputsperhospital(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Simulations with natural immune boosting
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+boostedobserveddiagnosesafterjuly = [ 
+    (
+        d = filter(
+            [ :StringCodes, :t ] => (x, y) -> x == c && y ∈ 470:831, 
+            boostedsimulation["boostedsimulation"]
+        );
+        sum(d.StaffNewAbsences) ./ d.StaffTotal[1]
+    )
+    for c ∈ unique(boostedsimulation["boostedsimulation"].StringCodes)
+]
 
 # hospital-specific parameters, unboosted immunity lasts 180 days
 
@@ -606,6 +705,17 @@ end
 # Simulations with "mid'level" natural immune boosting (ψ = 0.5)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+midboostedobserveddiagnosesafterjuly = [ 
+    (
+        d = filter(
+            [ :StringCodes, :t ] => (x, y) -> x == c && y ∈ 470:831, 
+            midboostedsimulation["midboostedsimulation"]
+        );
+        sum(d.StaffNewAbsences) ./ d.StaffTotal[1]
+    )
+    for c ∈ unique(midboostedsimulation["midboostedsimulation"].StringCodes)
+]
+
 # hospital-specific parameters, unboosted immunity lasts 180 days
 
 midboosteddf_omega180 = loadchainsperhospitaldf(
@@ -786,6 +896,11 @@ else
 end
 
 include("analysedatasetup.jl")
+
+dataobserveddiagnosesafterjuly = [ 
+    sum(@view newstaff[470:831, i]) 
+    for i ∈ axes(newstaff, 2) 
+]
 
 # hospital-specific parameters, unboosted immunity lasts 180 days
 
@@ -1077,7 +1192,8 @@ omega100changevaccinationdatefig = let
             unboostedoutputsperhospital_omega100_m1, 
             unboostedoutputsperhospital_omega100_p1, 
             unboostedoutputsperhospital_omega100_p2, 
-            unboostedoutputsperhospital_omega100_diagnosesafterjuly
+            unboostedoutputsperhospital_omega100_diagnosesafterjuly,
+            unboostedobserveddiagnosesafterjuly 
         )
         plotcounterfactualvaccine!(
             gb, 
@@ -1085,7 +1201,8 @@ omega100changevaccinationdatefig = let
             midboostedoutputsperhospital_omega100_m1, 
             midboostedoutputsperhospital_omega100_p1, 
             midboostedoutputsperhospital_omega100_p2, 
-            midboostedoutputsperhospital_omega100_diagnosesafterjuly
+            midboostedoutputsperhospital_omega100_diagnosesafterjuly,
+            midboostedobserveddiagnosesafterjuly 
         )
         plotcounterfactualvaccine!(
             gc, 
@@ -1093,7 +1210,8 @@ omega100changevaccinationdatefig = let
             boostedoutputsperhospital_omega100_m1, 
             boostedoutputsperhospital_omega100_p1, 
             boostedoutputsperhospital_omega100_p2, 
-            boostedoutputsperhospital_omega100_diagnosesafterjuly
+            boostedoutputsperhospital_omega100_diagnosesafterjuly,
+            boostedobserveddiagnosesafterjuly 
         )
         plotcounterfactualvaccine!(
             gd, 
@@ -1101,9 +1219,157 @@ omega100changevaccinationdatefig = let
             dataoutputsperhospital_omega100_m1, 
             dataoutputsperhospital_omega100_p1, 
             dataoutputsperhospital_omega100_p2, 
-            dataoutputsperhospital_omega100_diagnosesafterjuly
+            dataoutputsperhospital_omega100_diagnosesafterjuly,
+            dataobserveddiagnosesafterjuly 
         )
         fig    
     end
     fig
 end
+
+# identify hospital with greatest number of cases 
+
+fig = Figure(; size=( 800, 1600))
+axs1 = [ Axis(fig[i, 1]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs2 = [ Axis(fig[i, 2]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs3 = [ Axis(fig[i, 3]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs4 = [ Axis(fig[i, 4]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs5 = [ Axis(fig[i, 5]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs6 = [ Axis(fig[i, 6]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+for (i, ax) ∈ enumerate(axs1)
+    lines!(ax, 470:831, staff[470:831, i])
+    formataxis!(ax; hidex=(i!=23))
+end
+for (i, ax) ∈ enumerate(axs2)
+    med = [ quantile(dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, med)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs3)
+    med = [ quantile(dataoutputsperhospital_omega100_m2["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, med)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs4)
+    med = [ quantile(dataoutputsperhospital_omega100_m1["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, med)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs5)
+    med = [ quantile(dataoutputsperhospital_omega100_p1["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, med)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs6)
+    med = [ quantile(dataoutputsperhospital_omega100_p2["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, med)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+linkaxes!(axs1..., axs2..., axs3..., axs4..., axs5..., axs6...)
+
+fig
+
+
+
+fig = Figure(; size=( 800, 1600))
+axs1 = [ Axis(fig[i, 1]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs2 = [ Axis(fig[i, 2]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs3 = [ Axis(fig[i, 3]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs4 = [ Axis(fig[i, 4]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+#axs5 = [ Axis(fig[i, 5]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+#axs6 = [ Axis(fig[i, 6]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+#for (i, ax) ∈ enumerate(axs1)
+#    lines!(ax, 470:831, staff[470:831, i])
+#    formataxis!(ax; hidex=(i!=23))
+#end
+firstmed = [ quantile(dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[j, i, :], 0.5) for i ∈ 1:23, j ∈ 470:831 ]
+
+#for (i, ax) ∈ enumerate(axs2)
+#    lines!(ax, 470:831, firstmed)
+#    formataxis!(ax; hidex=(i!=23), hidey=true)
+#end
+for (i, ax) ∈ enumerate(axs1)
+    med = [ quantile(dataoutputsperhospital_omega100_m2["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, cumsum(med .- firstmed[i, :]) ./ 10)
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23))
+end
+for (i, ax) ∈ enumerate(axs2)
+    med = [ quantile(dataoutputsperhospital_omega100_m1["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, cumsum(med .- firstmed[i, :]) ./ 10)
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs3)
+    med = [ quantile(dataoutputsperhospital_omega100_p1["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, cumsum(med .- firstmed[i, :]) ./ 10)
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs4)
+    med = [ quantile(dataoutputsperhospital_omega100_p2["predictdiagnoses"][j, i, :], 0.5) for j ∈ 470:831 ]
+    lines!(ax, 470:831, cumsum(med .- firstmed[i, :]) ./ 10)
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+linkaxes!(axs1..., axs2..., axs3..., axs4...)
+
+fig
+
+
+
+
+# rank hospitals 
+
+
+fig = Figure(; size=( 800, 1600))
+axs1 = [ Axis(fig[i, 1]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs2 = [ Axis(fig[i, 2]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs3 = [ Axis(fig[i, 3]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+axs4 = [ Axis(fig[i, 4]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
+for (i, ax) ∈ enumerate(axs1)
+    plotcumulativecounterfactualvaccine!(  #
+        ax,
+        470:831,
+        dataoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, i, :] ./ 10,
+        # Values are divided by 10 as we are plotting a cumulative prevalence of isolating
+        # from work. Those who isolate do so for 10 days, so the cumulative incidence of
+        # isolating is approximately this value over 10
+        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
+    )
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23))
+end
+for (i, ax) ∈ enumerate(axs2)
+    plotcumulativecounterfactualvaccine!(
+        ax,
+        470:831,
+        dataoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, i, :] ./ 10,
+        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
+    )
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs3)
+    plotcumulativecounterfactualvaccine!(
+        ax,
+        470:831,
+        dataoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, i, :] ./ 10,
+        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
+    )
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+for (i, ax) ∈ enumerate(axs4)
+    plotcumulativecounterfactualvaccine!(
+        ax,
+        470:831,
+        dataoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, i, :] ./ 10,
+        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
+    )
+    hlines!(ax, 0; color=:black, linestyle=:dot)
+    formataxis!(ax; hidex=(i!=23), hidey=true)
+end
+linkaxes!(axs1..., axs2..., axs3..., axs4...)
+
+fig

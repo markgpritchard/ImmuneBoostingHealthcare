@@ -88,7 +88,7 @@ unboostedsimulation = let
             sim.StaffR2[i] = 0
             sim.StaffR3[i] = 0
         else
-            sim.λh[i] = sim.StaffProportion[i-1] * sim.betahh[i]
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
             i_s = rand(
                 truncated(
                     Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
@@ -243,7 +243,7 @@ boostedsimulation = let  # psi = 2
             sim.StaffR2[i] = 0
             sim.StaffR3[i] = 0
         else
-            sim.λh[i] = sim.StaffProportion[i-1] * sim.betahh[i]
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
             i_s = rand(
                 truncated(
                     Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
@@ -408,7 +408,7 @@ midboostedsimulation = let  # psi = 2
             sim.StaffR2[i] = 0
             sim.StaffR3[i] = 0
         else
-            sim.λh[i] = sim.StaffProportion[i-1] * sim.betahh[i]
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
             i_s = rand(
                 truncated(
                     Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
