@@ -6,6 +6,7 @@ using DrWatson
 include(srcdir("PlottingFunctions.jl"))
 using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
+import ImmuneBoostingHealthcare: Automatic, automatic
 
 include("analysesimssetup.jl")
 
@@ -175,6 +176,116 @@ function plotcumulativecounterfactualvaccine!(
         color=( color, 0.25),
     )
 end
+
+function plotcumulativecounterfactualvaccine!(
+    gl::GridLayout, 
+    dates, 
+    modelledoriginal::Array{<:Number, 3}, 
+    cf_m2::Array{<:Number, 3}, 
+    cf_m1::Array{<:Number, 3}, 
+    cf_p1::Array{<:Number, 3}, 
+    cf_p2::Array{<:Number, 3};
+    observeddiagnoses=automatic,
+    xticks=Makie.automatic,
+    vline=nothing,
+    vspan=nothing,
+)
+    # rank hospitals so those with most cases are plotted first
+    rankindices = _rankindicesoftotaldiagnoses(modelledoriginal, observeddiagnoses)
+    nhospitals = size(modelledoriginal, 2)
+
+    axs1 = [ Axis(gl[i, 1]; xticks) for i ∈ 1:nhospitals ]
+    axs2 = [ Axis(gl[i, 2]; xticks) for i ∈ 1:nhospitals ]
+    axs3 = [ Axis(gl[i, 3]; xticks) for i ∈ 1:nhospitals ]
+    axs4 = [ Axis(gl[i, 4]; xticks) for i ∈ 1:nhospitals ]
+    for (i, ax) ∈ enumerate(axs1)
+        k = rankindices[i]
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_m2[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+            # Values are divided by 10 as we are plotting a cumulative prevalence of isolating
+            # from work. Those who isolate do so for 10 days, so the cumulative incidence of
+            # isolating is approximately this value over 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 1)
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 1)
+        formataxis!(ax; hidex=(i!=nhospitals))
+    end
+    for (i, ax) ∈ enumerate(axs2)
+        k = rankindices[i]
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_m1[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 2)
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 2)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    for (i, ax) ∈ enumerate(axs3)
+        k = rankindices[i]
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_p1[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 3)
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 3)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    for (i, ax) ∈ enumerate(axs4)
+        k = rankindices[i]
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_p2[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 4)
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 4)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    linkaxes!(axs1..., axs2..., axs3..., axs4...)
+end
+
+function _plotcumulativecounterfactualvaccinevline!(
+    ax, x::Number, ::Any; 
+    color=:black, linestyle=:dot
+)
+    vlines!(ax, x; color, linestyle)
+end
+
+function _plotcumulativecounterfactualvaccinevline!(
+    ax, x::AbstractVector{<:Number}, i::Integer; 
+    kwargs...
+)
+    _plotcumulativecounterfactualvaccinevline!(ax, x[i], nothing; kwargs...)
+end
+
+_plotcumulativecounterfactualvaccinevline!(::Any, ::Nothing, ::Any) = nothing
+
+function _plotcumulativecounterfactualvaccinevspan!(
+    ax, xs::AbstractVector{<:Real}, ::Any; 
+    color=( :grey, 10 ),
+)
+    vspan!(ax, xs; color)
+end
+
+function _plotcumulativecounterfactualvaccinevspan!(
+    ax, xs::AbstractVector{<:AbstractVector}, i::Integer; 
+    kwargs...
+)
+    _plotcumulativecounterfactualvaccinevspan!(ax, xs[i], nothing; kwargs...)
+end
+
+_plotcumulativecounterfactualvaccinevspan!(::Any, ::Nothing, ::Any) = nothing
+
+function _rankindicesoftotaldiagnoses(totaldiagnosis, ::Automatic)
+    rankvector = ordinalrank(totaldiagnosis; rev=true)
+    return [ findfirst(x -> x == i, rankvector) for i ∈ eachindex(rankvector) ]
+end
+
+function _rankindicesoftotaldiagnoses(::Any, observeddiagnosis::AbstractVector)
+    return _rankindicesoftotaldiagnoses(observeddiagnosis, automatic)
+end
+
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1319,57 +1430,90 @@ fig
 
 
 
-# rank hospitals 
 
 
-fig = Figure(; size=( 800, 1600))
-axs1 = [ Axis(fig[i, 1]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
-axs2 = [ Axis(fig[i, 2]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
-axs3 = [ Axis(fig[i, 3]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
-axs4 = [ Axis(fig[i, 4]; xticks=[ 531, 592, 653, 712 ]) for i ∈ 1:23 ]
-for (i, ax) ∈ enumerate(axs1)
-    plotcumulativecounterfactualvaccine!(  #
-        ax,
-        470:831,
-        dataoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, i, :] ./ 10,
-        # Values are divided by 10 as we are plotting a cumulative prevalence of isolating
-        # from work. Those who isolate do so for 10 days, so the cumulative incidence of
-        # isolating is approximately this value over 10
-        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
-    )
-    hlines!(ax, 0; color=:black, linestyle=:dot)
-    formataxis!(ax; hidex=(i!=23))
+unboostedomega100changevaccinationdatefig = let 
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size=( 587, 800 ))
+        ga = GridLayout(fig[1, 1])
+        plotcumulativecounterfactualvaccine!(
+            ga, 
+            470:831, 
+            unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, :, :] , 
+            unboostedoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, :, :], 
+            unboostedoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, :, :], 
+            unboostedoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, :, :], 
+            unboostedoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, :, :];
+            observeddiagnoses=unboostedobserveddiagnosesafterjuly,
+            xticks=(
+                [ 469, 561, 653, 743, 834 ],
+                [ "July", "Oct.", "Jan.", "April", "July" ]
+            ),
+            vline=531,
+            vspan = [ [ 531 + x, 621 + x ] for x ∈ [ -62, -31, 30, 61 ] ],
+        )
+        fig    
+    end
+    fig
 end
-for (i, ax) ∈ enumerate(axs2)
-    plotcumulativecounterfactualvaccine!(
-        ax,
-        470:831,
-        dataoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, i, :] ./ 10,
-        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
-    )
-    hlines!(ax, 0; color=:black, linestyle=:dot)
-    formataxis!(ax; hidex=(i!=23), hidey=true)
-end
-for (i, ax) ∈ enumerate(axs3)
-    plotcumulativecounterfactualvaccine!(
-        ax,
-        470:831,
-        dataoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, i, :] ./ 10,
-        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
-    )
-    hlines!(ax, 0; color=:black, linestyle=:dot)
-    formataxis!(ax; hidex=(i!=23), hidey=true)
-end
-for (i, ax) ∈ enumerate(axs4)
-    plotcumulativecounterfactualvaccine!(
-        ax,
-        470:831,
-        dataoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, i, :] ./ 10,
-        dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, i, :] ./ 10
-    )
-    hlines!(ax, 0; color=:black, linestyle=:dot)
-    formataxis!(ax; hidex=(i!=23), hidey=true)
-end
-linkaxes!(axs1..., axs2..., axs3..., axs4...)
 
-fig
+midboostedomega100changevaccinationdatefig = let 
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size=( 800, 1600 ))
+        ga = GridLayout(fig[1, 1])
+        plotcumulativecounterfactualvaccine!(
+            ga, 
+            470:831, 
+            midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, :, :] , 
+            midboostedoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, :, :], 
+            midboostedoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, :, :], 
+            midboostedoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, :, :], 
+            midboostedoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, :, :];
+            observeddiagnoses=midboostedobserveddiagnosesafterjuly,
+            xticks=[ 531, 592, 653, 712 ],
+        )
+        fig    
+    end
+    fig
+end
+
+boostedomega100changevaccinationdatefig = let 
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size=( 800, 1600 ))
+        ga = GridLayout(fig[1, 1])
+        plotcumulativecounterfactualvaccine!(
+            ga, 
+            470:831, 
+            boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, :, :] , 
+            boostedoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, :, :], 
+            boostedoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, :, :], 
+            boostedoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, :, :], 
+            boostedoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, :, :];
+            observeddiagnoses=boostedobserveddiagnosesafterjuly,
+            xticks=[ 531, 592, 653, 712 ],
+        )
+        fig    
+    end
+    fig
+end
+
+dataomega100changevaccinationdatefig = let 
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size=( 800, 1600 ))
+        ga = GridLayout(fig[1, 1])
+        plotcumulativecounterfactualvaccine!(
+            ga, 
+            470:831, 
+            dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, :, :] , 
+            dataoutputsperhospital_omega100_m2["predictdiagnoses"][470:831, :, :], 
+            dataoutputsperhospital_omega100_m1["predictdiagnoses"][470:831, :, :], 
+            dataoutputsperhospital_omega100_p1["predictdiagnoses"][470:831, :, :], 
+            dataoutputsperhospital_omega100_p2["predictdiagnoses"][470:831, :, :];
+            observeddiagnoses=dataobserveddiagnosesafterjuly,
+            xticks=[ 531, 592, 653, 712 ],
+        )
+        fig    
+    end
+    fig
+end
+
