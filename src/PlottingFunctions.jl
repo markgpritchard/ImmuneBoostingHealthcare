@@ -5,12 +5,13 @@
 module PlottingFunctions 
 
 using DrWatson
-using CairoMakie, DataFrames
+using CairoMakie, DataFrames, StatsBase
 import ImmuneBoostingHealthcare: Automatic, automatic
 
-export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, formataxis!, formataxishidespines!, 
-    labelplots!, plotchains, plothospitaloutputs, plotoutputs, plotoutputs!, setorigin!, 
-    setvalue!
+export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, estimateeffectofboosting, formataxis!, 
+    formataxishidespines!, labelplots!, plotchains, plotcounterfactualvaccine!, 
+    plotcumulativecounterfactualvaccine!, plothospitaloutputs, plotoutputs, plotoutputs!, 
+    setorigin!, setvalue!
 
 # Consistent colour scheme across plots 
 
@@ -168,6 +169,257 @@ function plothospitaloutputs(
     rowgap!(fig.layout, 5, 5)
     
     fig
+end
+
+function estimateeffectofboosting(boosted, unboosted; nhospitals, CrI=[ 0.05, 0.95 ])
+    raweffectofboosting = boosted .- unboosted
+   
+    medianeffectofboosting = [ quantile(raweffectofboosting[j, :], 0.5) for j ∈ 1:nhospitals ]
+    lceffectofboosting = [ quantile(raweffectofboosting[j, :], CrI[1]) for j ∈ 1:nhospitals ]
+    uceffectofboosting = [ quantile(raweffectofboosting[j, :], CrI[2]) for j ∈ 1:nhospitals ]
+    
+    return @ntuple medianeffectofboosting lceffectofboosting uceffectofboosting 
+end
+
+function plotcounterfactualvaccine!(
+    ax::Axis, 
+    counterfactual::Vector{<:Real}, 
+    modelledoriginal::Vector{<:Real}, 
+    originaldata_x::Vector{<:Real}; 
+    color=COLOURVECTOR[1], markersize=3,
+)
+    scatter!(
+        ax, originaldata_x, 100 .* (counterfactual .- modelledoriginal) ./ modelledoriginal; 
+        color, markersize,
+    )
+end
+
+function plotcounterfactualvaccine!(
+    ax::Axis, 
+    counterfactual::Dict{<:AbstractString, <:Any}, 
+    modelledoriginal, 
+    originaldata_x; 
+    kwargs...
+)
+    plotcounterfactualvaccine!(
+        ax, counterfactual["mediantotaldiagnoses"], modelledoriginal, originaldata_x; 
+        kwargs...
+    )
+end
+
+function plotcounterfactualvaccine!(
+    ax::Axis, 
+    counterfactual::Vector{<:Real}, 
+    modelledoriginal::NamedTuple, 
+    originaldata_x; 
+    kwargs...
+)
+    plotcounterfactualvaccine!(
+        ax, counterfactual, modelledoriginal.mediantotaldiagnoses, originaldata_x; 
+        kwargs...
+    )
+end
+
+function plotcounterfactualvaccine!(ax::Axis, counterfactual, originaldata; kwargs...)
+    plotcounterfactualvaccine!(ax, counterfactual, originaldata, originaldata; kwargs...)
+end
+
+function plotcounterfactualvaccine!(
+    gl::GridLayout, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal, originaldata_x; 
+    kwargs...
+)
+    axs = [ Axis(gl[1, i]) for i ∈ 1:4 ]
+    for (ax, cf) ∈ zip(axs, [ cf_m2, cf_m1, cf_p1, cf_p2 ])
+        plotcounterfactualvaccine!(ax, cf, modelledoriginal, originaldata_x)
+    end
+    for (i, ax) ∈ enumerate(axs)
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        formataxis!(ax; hidey=(i != 1))
+    end
+    linkyaxes!(axs...)
+    Label(gl[0, 1], "2 months earlier"; fontsize=11.84, tellwidth=false)
+    Label(gl[0, 2], "1 month earlier"; fontsize=11.84, tellwidth=false)
+    Label(gl[0, 3], "1 month later"; fontsize=11.84, tellwidth=false)
+    Label(gl[0, 4], "2 months later"; fontsize=11.84, tellwidth=false)
+    Label(
+        gl[1, 0], "Proportional change in infections, %"; 
+        fontsize=11.84, rotation=π/2, tellheight=false
+    )
+    Label(
+        gl[2, 1:4], "Mean infections per healthcare worker, after July 2021"; 
+        fontsize=11.84, tellwidth=false
+    )
+
+    colgap!(gl, 1, 5)
+    for r ∈ [ 1, 2 ] rowgap!(gl, r, 5) end
+end
+
+function plotcounterfactualvaccine!(
+    gl::GridLayout, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal; 
+    kwargs...
+)
+    plotcounterfactualvaccine!(
+        gl, cf_m2, cf_m1, cf_p1, cf_p2, modelledoriginal, modelledoriginal; 
+        kwargs...
+    )
+end
+
+function _cumulativecounterfactualvaccine(
+    counterfactual::Matrix{<:Real}, originaldata::Matrix{<:Real}
+)
+    cumulativedifference = zeros(size(counterfactual))
+    for j ∈ axes(counterfactual, 2)
+        cumulativedifference[:, j] = cumsum(counterfactual[:, j] .- originaldata[:, j])
+    end
+    return cumulativedifference 
+end
+
+function _quantilecumulativecounterfactualvaccine(counterfactual, originaldata; kwargs...)
+    cumulativedifference = _cumulativecounterfactualvaccine(counterfactual, originaldata)
+    return _quantilecumulativecounterfactualvaccine(cumulativedifference; kwargs...)
+end
+
+function _quantilecumulativecounterfactualvaccine(
+    cumulativedifference; 
+    quantiles=[ 0.05, 0.5, 0.95 ]
+)
+    return [ 
+        quantile(cumulativedifference[i, :], quantiles) 
+        for i ∈ axes(cumulativedifference, 1) 
+    ]
+end
+
+function plotcumulativecounterfactualvaccine!(
+    ax, dates, counterfactual::Matrix{<:Real}, originaldata::Matrix{<:Real};
+    quantiles=[ 0.05, 0.5, 0.95 ], kwargs...
+)
+    quantilevalues = _quantilecumulativecounterfactualvaccine(
+        counterfactual, originaldata; 
+        quantiles
+    )
+    plotcumulativecounterfactualvaccine!(ax, dates, quantilevalues; kwargs...)
+end
+
+function plotcumulativecounterfactualvaccine!(
+    ax, dates, quantiles::AbstractVector{<:AbstractVector{<:Real}};
+    color=COLOURVECTOR[1]
+)
+    lines!(ax, dates, [ quantiles[i][2] for i ∈ eachindex(quantiles) ]; color)
+    band!(
+        ax, 
+        dates, 
+        [ quantiles[i][1] for i ∈ eachindex(quantiles) ], 
+        [ quantiles[i][3] for i ∈ eachindex(quantiles) ];
+        color=( color, 0.25),
+    )
+end
+
+function plotcumulativecounterfactualvaccine!(
+    gl::GridLayout, 
+    dates, 
+    modelledoriginal::Array{<:Number, 3}, 
+    cf_m2::Array{<:Number, 3}, 
+    cf_m1::Array{<:Number, 3}, 
+    cf_p1::Array{<:Number, 3}, 
+    cf_p2::Array{<:Number, 3};
+    observeddiagnoses=automatic,
+    xticks=Makie.automatic,
+    vline=nothing,
+    vspan=nothing,
+)
+    # rank hospitals so those with most cases are plotted first
+    rankindices = _rankindicesoftotaldiagnoses(modelledoriginal, observeddiagnoses)
+    nhospitals = size(modelledoriginal, 2)
+
+    axs1 = [ Axis(gl[i, 1]; xticks) for i ∈ 1:nhospitals ]
+    axs2 = [ Axis(gl[i, 2]; xticks) for i ∈ 1:nhospitals ]
+    axs3 = [ Axis(gl[i, 3]; xticks) for i ∈ 1:nhospitals ]
+    axs4 = [ Axis(gl[i, 4]; xticks) for i ∈ 1:nhospitals ]
+    for (i, ax) ∈ enumerate(axs1)
+        k = rankindices[i]
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 1)
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_m2[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+            # Values are divided by 10 as we are plotting a cumulative prevalence of isolating
+            # from work. Those who isolate do so for 10 days, so the cumulative incidence of
+            # isolating is approximately this value over 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 1)
+        formataxis!(ax; hidex=(i!=nhospitals))
+    end
+    for (i, ax) ∈ enumerate(axs2)
+        k = rankindices[i]
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 2)
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_m1[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 2)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    for (i, ax) ∈ enumerate(axs3)
+        k = rankindices[i]
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 3)
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_p1[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 3)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    for (i, ax) ∈ enumerate(axs4)
+        k = rankindices[i]
+        _plotcumulativecounterfactualvaccinevspan!(ax, vspan, 4)
+        plotcumulativecounterfactualvaccine!(
+            ax, dates, cf_p2[:, k, :] ./ 10, modelledoriginal[:, k, :] ./ 10
+        )
+        hlines!(ax, 0; color=:black, linestyle=:dot)
+        _plotcumulativecounterfactualvaccinevline!(ax, vline, 4)
+        formataxis!(ax; hidex=(i!=nhospitals), hidey=true)
+    end
+    linkaxes!(axs1..., axs2..., axs3..., axs4...)
+end
+
+function _plotcumulativecounterfactualvaccinevline!(
+    ax, x::Number, ::Any; 
+    color=:black, linestyle=:dot
+)
+    vlines!(ax, x; color, linestyle)
+end
+
+function _plotcumulativecounterfactualvaccinevline!(
+    ax, x::AbstractVector{<:Number}, i::Integer; 
+    kwargs...
+)
+    _plotcumulativecounterfactualvaccinevline!(ax, x[i], nothing; kwargs...)
+end
+
+_plotcumulativecounterfactualvaccinevline!(::Any, ::Nothing, ::Any) = nothing
+
+function _plotcumulativecounterfactualvaccinevspan!(
+    ax, xs::AbstractVector{<:Real}, ::Any; 
+    color=( :grey, 10 ),
+)
+    vspan!(ax, xs[1], last(xs); color)
+end
+
+function _plotcumulativecounterfactualvaccinevspan!(
+    ax, xs::AbstractVector{<:AbstractVector}, i::Integer; 
+    kwargs...
+)
+    _plotcumulativecounterfactualvaccinevspan!(ax, xs[i], nothing; kwargs...)
+end
+
+_plotcumulativecounterfactualvaccinevspan!(::Any, ::Nothing, ::Any) = nothing
+
+function _rankindicesoftotaldiagnoses(totaldiagnosis, ::Automatic)
+    rankvector = ordinalrank(totaldiagnosis; rev=true)
+    return [ findfirst(x -> x == i, rankvector) for i ∈ eachindex(rankvector) ]
+end
+
+function _rankindicesoftotaldiagnoses(::Any, observeddiagnosis::AbstractVector)
+    return _rankindicesoftotaldiagnoses(observeddiagnosis, automatic)
 end
 
 
