@@ -15,135 +15,166 @@
 	calc,
 }
 
+\tikzset{unobserved/.style={
+		% The shape:
+		circle,
+		% The size:
+		minimum size=12mm,
+		% The border:
+		semithick,
+		draw=black,
+}}
+
 \begin{document}
 	
-	\pagestyle{empty}
+\pagestyle{empty}
+
+\begin{tikzpicture}[
+	>= {Stealth[round]},semithick,black!50,
+	text=black, 
+	node distance = 1.6cm, 
+	every new ->/.style={shorten >=1pt},
+	graphs/every graph/.style={edges=rounded corners}
+	]
 	
-	\begin{tikzpicture}[
-		> = stealth, % arrow head style
-		shorten > = 1pt, % don't touch arrow head to node
-		auto,
-		node distance = 2.1cm, % distance between nodes
-		semithick % line style
-		]
-		
-		\tikzstyle{every state}=[
-		draw = black,
-		thick,
-		fill = white,
-		minimum size = 4mm
-		]
-		\node (n01) {$i_{\mathrm{c}}(0)$};
-		\node (n02) [right of=n01] {$\mathbf{\ell}(0)$};
-		\node (n03) [right of=n02] {$i_{\mathrm{p}}(0)$};
-		\node (n04) [right of=n03] {$i_{\mathrm{h}}(0)$};
-		\node (n05)[state] [right of=n04] {$r_{\mathrm{h}}(0)$};
-		
-		\node (n11) [below of = n01] {$i_{\mathrm{c}}(1)$};
-		\node (n12) [right of=n11] {$\mathbf{\ell}(1)$};
-		\node (n13) [right of=n12] {$i_{\mathrm{p}}(1)$};
-		\node (n14) [right of=n13] {$i_{\mathrm{h}}(1)$};
-		\node (n15)[state] [right of=n14] {$r_{\mathrm{h}}(1)$};
-		
-		\node (n21) [below of = n11] {$i_{\mathrm{c}}(2)$};
-		\node (n22) [right of=n21] {$\mathbf{\ell}(2)$};
-		\node (n23) [right of=n22] {$i_{\mathrm{p}}(2)$};
-		\node (n24) [right of=n23] {$i_{\mathrm{h}}(2)$};
-		\node (n25)[state] [right of=n24] {$r_{\mathrm{h}}(2)$};
-		
-		\node (n31) [below of = n21] {$i_{\mathrm{c}}(3)$};
-		\node (n32) [right of=n31] {$\mathbf{\ell}(3)$};
-		\node (n33) [right of=n32] {$i_{\mathrm{p}}(3)$};
-		\node (n34) [right of=n33] {$i_{\mathrm{h}}(3)$};
-		\node (n35)[state] [right of=n34] {$r_{\mathrm{h}}(3)$};
-		
-		\node (n41) [below of = n31] {$i_{\mathrm{c}}(4)$};
-		\node (n42) [right of=n41] {$\mathbf{\ell}(4)$};
-		\node (n43) [right of=n42] {$i_{\mathrm{p}}(4)$};
-		\node (n44) [right of=n43] {$i_{\mathrm{h}}(4)$};
-		\node (n45)[state] [right of=n44] {$r_{\mathrm{h}}(4)$};
-		
-		
-		% Add a pre-r(t_1) value 
-		
-		\path[->] (n01) edge (n11);
-		\path[->] (n01) edge (n13);
-		\path[->] (n01) edge (n14);
-		\path[->] (n01) edge[red,densely dashed] (n15);
-		\path[->] (n02) edge (n12);	
-		\path[->] (n02) edge (n13);	
-		\path[->] (n02) edge (n14);
-		\path[->] (n02) edge[red,densely dashed] (n15);
-		\path[->] (n03) edge (n13);
-		\path[->] (n03) edge (n14);
-		\path[->] (n03) edge[red,densely dashed] (n15);
-		\path[->] (n04) edge (n13);
-		\path[->] (n04) edge (n14);
-		\path[->] (n04) edge (n15);
-		\path[->] (n05) edge (n14);
-		\path[->] (n05) edge (n15);
-		
-		\path[->] (n11) edge (n21);
-		\path[->] (n11) edge (n23);
-		\path[->] (n11) edge (n24);
-		\path[->] (n11) edge[red,densely dashed] (n25);
-		\path[->] (n12) edge (n22);	
-		\path[->] (n12) edge (n23);	
-		\path[->] (n12) edge (n24);
-		\path[->] (n12) edge[red,densely dashed] (n25);
-		\path[->] (n13) edge (n23);
-		\path[->] (n13) edge (n24);
-		\path[->] (n13) edge[red,densely dashed] (n25);
-		\path[->] (n14) edge (n23);
-		\path[->] (n14) edge (n24);
-		\path[->] (n14) edge (n25);
-		\path[->] (n15) edge (n24);
-		\path[->] (n15) edge (n25);
-		
-		\path[->] (n21) edge (n31);
-		\path[->] (n21) edge (n33);
-		\path[->] (n21) edge (n34);
-		\path[->] (n21) edge[red,densely dashed] (n35);
-		\path[->] (n22) edge (n32);	
-		\path[->] (n22) edge (n33);	
-		\path[->] (n22) edge (n34);
-		\path[->] (n22) edge[red,densely dashed] (n35);
-		\path[->] (n23) edge (n33);
-		\path[->] (n23) edge (n34);
-		\path[->] (n23) edge[red,densely dashed] (n35);
-		\path[->] (n24) edge (n33);
-		\path[->] (n24) edge (n34);
-		\path[->] (n24) edge (n35);
-		\path[->] (n25) edge (n34);
-		\path[->] (n25) edge (n35);
-		
-		\path[->] (n31) edge (n41);
-		\path[->] (n31) edge (n43);
-		\path[->] (n31) edge (n44);
-		\path[->] (n31) edge[red,densely dashed] (n45);
-		\path[->] (n32) edge (n42);	
-		\path[->] (n32) edge (n43);	
-		\path[->] (n32) edge (n44);
-		\path[->] (n32) edge[red,densely dashed] (n45);
-		\path[->] (n33) edge (n43);
-		\path[->] (n33) edge (n44);
-		\path[->] (n33) edge[red,densely dashed] (n45);
-		\path[->] (n34) edge (n43);
-		\path[->] (n34) edge (n44);
-		\path[->] (n34) edge (n45);
-		\path[->] (n35) edge (n44);
-		\path[->] (n35) edge (n45);
-		
-		
-		
-		%\path[->] (n01) edge[lightgray] (n12);
-		%\path[->] (n01) edge[lightgray] (n13);
-		%\path[->] (n01) edge[lightgray,bend left=3] (n14);
-		%\path[->] (n01) edge[lightgray] (n15);
-		%\path[->] (n01) edge[lightgray] (n05);
-		
-		
-		%\path[->] (n23) edge[red,densely dashed] (n35);
-	\end{tikzpicture}
+	%% time 0
+	\node (empty01) { };
+	\node (ic0) [right of=empty01]  {$i_{\mathrm{c}}(t_0)$};		
+	\node (ip0) [right of=ic0] {$i_{\mathrm{p}}(t_0)$};
+	\node (ih0) [right of=ip0] {$i_{\mathrm{h}}(t_0)$};
+	\node (empty05) [right of=ih0] { };
+	\node (empty06) [right of=empty05] { };
+	\node (x0) [below of=empty01,yshift=2mm] {$\mathbf{x}(t_0)$};
+	\node (empty02) [right of=x0] { };
+	\node (empty03) [right of=empty02] { };
+	\node (empty04) [right of=empty03] { };
+	\node (l0)[unobserved] [right of=empty04] {$\lambda(t_0)$};
+	\node (r0)[unobserved] [right of=l0] {$r_{\mathrm{h}}(t_0)$};
 	
+	%% time 1
+	\node (empty11) [below of=x0] { };
+	\node (ic1) [right of=empty11]  {$i_{\mathrm{c}}(t_1)$};		
+	\node (ip1) [right of=ic1] {$i_{\mathrm{p}}(t_1)$};
+	\node (ih1) [right of=ip1] {$i_{\mathrm{h}}(t_1)$};
+	\node (empty15) [right of=ih1] { };
+	\node (empty16) [right of=empty15] { };
+	\node (x1) [below of=empty11,yshift=2mm] {$\mathbf{x}(t_1)$};
+	\node (empty12) [right of=x1] { };
+	\node (empty13) [right of=empty12] { };
+	\node (empty14) [right of=empty13] { };
+	\node (l1)[unobserved] [right of=empty14] {$\lambda(t_1)$};
+	\node (r1)[unobserved] [right of=l1] {$r_{\mathrm{h}}(t_1)$};
+
+	%% time 2
+	\node (empty21) [below of=x1] { };
+	\node (ic2) [right of=empty21]  {$i_{\mathrm{c}}(t_2)$};		
+	\node (ip2) [right of=ic2] {$i_{\mathrm{p}}(t_2)$};
+	\node (ih2) [right of=ip2] {$i_{\mathrm{h}}(t_2)$};
+	\node (empty25) [right of=ih2] { };
+	\node (empty26) [right of=empty25] { };
+	\node (x2) [below of=empty21,yshift=2mm] {$\mathbf{x}(t_2)$};
+	\node (empty22) [right of=x2] { };
+	\node (empty23) [right of=empty22] { };
+	\node (empty24) [right of=empty23] { };
+	\node (l2)[unobserved] [right of=empty24] {$\lambda(t_2)$};
+	\node (r2)[unobserved] [right of=l2] {$r_{\mathrm{h}}(t_2)$};
+	
+	%% time 3
+	\node (empty31) [below of=x2] { };
+	\node (ic3) [right of=empty31]  {$i_{\mathrm{c}}(t_3)$};		
+	\node (ip3) [right of=ic3] {$i_{\mathrm{p}}(t_3)$};
+	\node (ih3) [right of=ip3] {$i_{\mathrm{h}}(t_3)$};
+	\node (empty35) [right of=ih3] { };
+	\node (empty36) [right of=empty35] { };
+	\node (x3) [below of=empty31,yshift=2mm] {$\mathbf{x}(t_3)$};
+	\node (empty32) [right of=x3] { };
+	\node (empty33) [right of=empty32] { };
+	\node (empty34) [right of=empty33] { };
+	\node (l3)[unobserved] [right of=empty34] {$\lambda(t_3)$};
+	\node (r3)[unobserved] [right of=l3] {$r_{\mathrm{h}}(t_3)$};
+	
+	%% time 4
+	\node (empty41) [below of=x3] { };
+	\node (ic4) [right of=empty41]  {$i_{\mathrm{c}}(t_4)$};		
+	\node (ip4) [right of=ic4] {$i_{\mathrm{p}}(t_4)$};
+	\node (ih4) [right of=ip4] {$i_{\mathrm{h}}(t_4)$};
+	\node (empty45) [right of=ih4] { };
+	\node (empty46) [right of=empty45] { };
+	
+	%% from time=0 nodes
+	\draw[->,shorten >=1pt] (ic0) to (ic1);
+	\draw[->,shorten >=1pt] (ic0) to (ip1);
+	\draw[->,shorten >=1pt] (ic0) to (l0);
+	\draw[->,shorten >=1pt] (ip0) to (ic1);	
+	\draw[->,shorten >=1pt] (ip0) to (ip1);
+	\draw[->,shorten >=1pt] (ip0) to (l0);
+	\draw[->,shorten >=1pt] (ih0) to (ip1);
+	\draw[->,shorten >=1pt] (ih0) to (l0);
+	\draw[->,shorten >=1pt] (ih0) to (r0);
+	\draw[->,shorten >=1pt] (x0) to (x1);
+	\draw[->,shorten >=1pt] (x0) to (ip1);
+	\draw[->,shorten >=1pt] (x0) to (l0);
+	\draw[->,shorten >=1pt] (l0) to (ih1);
+	\draw[->,shorten >=1pt,red,densely dashed] (l0) to (r1);
+	\draw[->,shorten >=1pt] (r0) to (ih1);
+	\draw[->,shorten >=1pt] (r0) to (r1);
+	
+	%% from time=1 nodes
+	\draw[->,shorten >=1pt] (ic1) to (ic2);
+	\draw[->,shorten >=1pt] (ic1) to (ip2);
+	\draw[->,shorten >=1pt] (ic1) to (l1);
+	\draw[->,shorten >=1pt] (ip1) to (ic2);	
+	\draw[->,shorten >=1pt] (ip1) to (ip2);
+	\draw[->,shorten >=1pt] (ip1) to (l1);
+	\draw[->,shorten >=1pt] (ih1) to (ip2);
+	\draw[->,shorten >=1pt] (ih1) to (l1);
+	\draw[->,shorten >=1pt] (ih1) to (r1);
+	\draw[->,shorten >=1pt] (x1) to (x2);
+	\draw[->,shorten >=1pt] (x1) to (ip2);
+	\draw[->,shorten >=1pt] (x1) to (l1);
+	\draw[->,shorten >=1pt] (l1) to (ih2);
+	\draw[->,shorten >=1pt,red,densely dashed] (l1) to (r2);
+	\draw[->,shorten >=1pt] (r1) to (ih2);
+	\draw[->,shorten >=1pt] (r1) to (r2);
+	
+	%% from time=2 nodes
+	\draw[->,shorten >=1pt] (ic2) to (ic3);
+	\draw[->,shorten >=1pt] (ic2) to (ip3);
+	\draw[->,shorten >=1pt] (ic2) to (l2);
+	\draw[->,shorten >=1pt] (ip2) to (ic3);	
+	\draw[->,shorten >=1pt] (ip2) to (ip3);
+	\draw[->,shorten >=1pt] (ip2) to (l2);
+	\draw[->,shorten >=1pt] (ih2) to (ip3);
+	\draw[->,shorten >=1pt] (ih2) to (l2);
+	\draw[->,shorten >=1pt] (ih2) to (r2);
+	\draw[->,shorten >=1pt] (x2) to (x3);
+	\draw[->,shorten >=1pt] (x2) to (ip3);
+	\draw[->,shorten >=1pt] (x2) to (l2);
+	\draw[->,shorten >=1pt] (l2) to (ih3);
+	\draw[->,shorten >=1pt,red,densely dashed] (l2) to (r3);
+	\draw[->,shorten >=1pt] (r2) to (ih3);
+	\draw[->,shorten >=1pt] (r2) to (r3);
+	
+	%% from time=3 nodes
+	\draw[->,shorten >=1pt] (ic3) to (ic4);
+	\draw[->,shorten >=1pt] (ic3) to (ip4);
+	\draw[->,shorten >=1pt] (ic3) to (l3);
+	\draw[->,shorten >=1pt] (ip3) to (ic4);	
+	\draw[->,shorten >=1pt] (ip3) to (ip4);
+	\draw[->,shorten >=1pt] (ip3) to (l3);
+	\draw[->,shorten >=1pt] (ih3) to (ip4);
+	\draw[->,shorten >=1pt] (ih3) to (l3);
+	\draw[->,shorten >=1pt] (ih3) to (r3);
+	\draw[->,shorten >=1pt] (x3) to (ip4);
+	\draw[->,shorten >=1pt] (x3) to (l3);
+	\draw[->,shorten >=1pt] (l3) to (ih4);
+	\draw[->,shorten >=1pt] (r3) to (ih4);
+	
+	%% longer effects of immunity 
+	\draw[->,shorten >=1pt,bend left=30] (r0) to (r2);
+	\draw[->,shorten >=1pt,bend left=30] (r1) to (r3);
+	\draw[->,shorten >=1pt,bend left=35] (r0) to (r3);
+	
+\end{tikzpicture}
+
 \end{document}
