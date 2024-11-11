@@ -16,86 +16,629 @@ include("processanalysis.jl")
 # Chains
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+const COLSFORCHAINPLOTS = [ 
+    "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
+    "sigma2", "hsigma2", "psigma2", "log_density" 
+]
+
 ## Model without boosting
 
-plotchains(
-    unboosteddf_omega180; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
-plotchains(
-    unboosteddf_omega100; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
+plotchains(unboosteddf_omega180; columns=COLSFORCHAINPLOTS)
+plotchains(unboosteddf_omega100; columns=COLSFORCHAINPLOTS)
 
 ## Model with mid-level boosting (ψ = 0.5)
 
-plotchains(
-    midboosteddf_omega180; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
-plotchains(
-    midboosteddf_omega100; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
+plotchains(midboosteddf_omega180; columns=COLSFORCHAINPLOTS)
+plotchains(midboosteddf_omega100; columns=COLSFORCHAINPLOTS)
 
 ## Model with double-strength boosting (ψ = 2)
 
-plotchains(
-    boosteddf_omega180; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
-plotchains(
-    boosteddf_omega100; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
+plotchains(boosteddf_omega180; columns=COLSFORCHAINPLOTS)
+plotchains(boosteddf_omega100; columns=COLSFORCHAINPLOTS)
 
 ## Applied to covid-19 data
 
-plotchains(
-    datadf_omega180; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
-plotchains(
-    datadf_omega100; 
-    columns=[ 
-        "α1", "α2", "α3", "α4", "α5", "α6", "α7", "α8", "ω", "θ", "ψ", 
-        "sigma2", "hsigma2", "psigma2", "log_density" 
-    ]
-)
-
+plotchains(datadf_omega180; columns=COLSFORCHAINPLOTS)
+plotchains(datadf_omega100; columns=COLSFORCHAINPLOTS)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Changes in numbers of cases with changes in vaccination times
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# function to make the plots 
+function plotcaseswithchangedvaccinationdates(
+
+    ;
+    observedcases
+    size=( 587, 500 ),
+    xticks=(
+        [ 469, 561, 653, 743, 834 ],
+        [ "July", "Oct.", "Jan.", "April", "July" ]
+    )
+)
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size)
+        axs1 = [ Axis(fig[1, i]; xticks) for i ∈ 1:4 ]
+        axs2 = [ Axis(fig[2, i]; xticks) for i ∈ 1:4 ]
+        axs3 = [ Axis(fig[3, i]; xticks) for i ∈ 1:4 ]
+        axs4 = [ Axis(fig[4, i]; xticks) for i ∈ 1:4 ]
+        
+        # unboosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(observedcases)
+        m, minind = findmin(observedcases)
+        
+        for (i, v) ∈ enumerate([
+            unboostedoutputsperhospital_omega100_m2, 
+            unboostedoutputsperhospital_omega100_m1,
+            unboostedoutputsperhospital_omega100_p1,
+            unboostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs1[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs1[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs1[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs1[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs1[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs1[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs1[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs1...)
+        
+        # midboosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(midboostedobserveddiagnosesafterjuly)
+        m, minind = findmin(midboostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            midboostedoutputsperhospital_omega100_m2, 
+            midboostedoutputsperhospital_omega100_m1,
+            midboostedoutputsperhospital_omega100_p1,
+            midboostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs2[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs2[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs2[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs2[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs2[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs2...)
+        
+        # boosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(boostedobserveddiagnosesafterjuly)
+        m, minind = findmin(boostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            boostedoutputsperhospital_omega100_m2, 
+            boostedoutputsperhospital_omega100_m1,
+            boostedoutputsperhospital_omega100_p1,
+            boostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs3[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs3[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs3[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs3[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs3[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs3...)
+        
+        # data 
+        # greatest and least number of cases 
+        m, maxind = findmax(dataobserveddiagnosesafterjuly)
+        m, minind = findmin(dataobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            dataoutputsperhospital_omega100_m2, 
+            dataoutputsperhospital_omega100_m1,
+            dataoutputsperhospital_omega100_p1,
+            dataoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs4[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs4[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs4[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs4[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs4[i]; hidey=(i != 1))
+        end
+        linkaxes!(axs4...)
+        fig    
+    end
+    fig
+end
+
+function plotcaseswithchangedvaccinationdates!(
+    axs::Vector{<:Axis}
+    ;
+
+)
+    fig = with_theme(theme_latexfonts()) do
+        fig = Figure(; size)
+        axs1 = [ Axis(fig[1, i]; xticks) for i ∈ 1:4 ]
+        axs2 = [ Axis(fig[2, i]; xticks) for i ∈ 1:4 ]
+        axs3 = [ Axis(fig[3, i]; xticks) for i ∈ 1:4 ]
+        axs4 = [ Axis(fig[4, i]; xticks) for i ∈ 1:4 ]
+        
+        # unboosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(observedcases)
+        m, minind = findmin(observedcases)
+        
+        for (i, v) ∈ enumerate([
+            unboostedoutputsperhospital_omega100_m2, 
+            unboostedoutputsperhospital_omega100_m1,
+            unboostedoutputsperhospital_omega100_p1,
+            unboostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs1[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs1[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs1[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs1[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs1[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs1[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs1[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs1...)
+        
+        # midboosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(midboostedobserveddiagnosesafterjuly)
+        m, minind = findmin(midboostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            midboostedoutputsperhospital_omega100_m2, 
+            midboostedoutputsperhospital_omega100_m1,
+            midboostedoutputsperhospital_omega100_p1,
+            midboostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs2[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs2[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs2[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs2[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs2[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs2...)
+        
+        # boosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(boostedobserveddiagnosesafterjuly)
+        m, minind = findmin(boostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            boostedoutputsperhospital_omega100_m2, 
+            boostedoutputsperhospital_omega100_m1,
+            boostedoutputsperhospital_omega100_p1,
+            boostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs3[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs3[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs3[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs3[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs3[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs3...)
+        
+        # data 
+        # greatest and least number of cases 
+        m, maxind = findmax(dataobserveddiagnosesafterjuly)
+        m, minind = findmin(dataobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            dataoutputsperhospital_omega100_m2, 
+            dataoutputsperhospital_omega100_m1,
+            dataoutputsperhospital_omega100_p1,
+            dataoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs4[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs4[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs4[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs4[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs4[i]; hidey=(i != 1))
+        end
+        linkaxes!(axs4...)
+        fig    
+    end
+    fig
+end
+
+function plotcaseswithchangedvaccinationdates!(
+    ax::Axis,
+    dates, predicteddiagnoses, counterfactual,
+    booststart, boostend,
+    ;
+    vspancolour=( :gray, 0.1)
+)
+    vspan!(ax, booststart, boostend; color=vspancolour)
+    plotcumulativecounterfactualvaccine!(
+        ax, dates, counterfactual[dates, maxind, :], predicteddiagnoses[dates, maxind, :]
+    )
+    plotcumulativecounterfactualvaccine!(
+        axs1[i], 
+        470:831,
+        v["predictdiagnoses"][470:831, minind, :],
+        unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+        color=COLOURVECTOR[2]
+    )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs1[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs1[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs1[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs1[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs1...)
+        
+        # midboosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(midboostedobserveddiagnosesafterjuly)
+        m, minind = findmin(midboostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            midboostedoutputsperhospital_omega100_m2, 
+            midboostedoutputsperhospital_omega100_m1,
+            midboostedoutputsperhospital_omega100_p1,
+            midboostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs2[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs2[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs2[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs2[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs2[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs2[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs2...)
+        
+        # boosted simulation 
+        # greatest and least number of cases 
+        m, maxind = findmax(boostedobserveddiagnosesafterjuly)
+        m, minind = findmin(boostedobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            boostedoutputsperhospital_omega100_m2, 
+            boostedoutputsperhospital_omega100_m1,
+            boostedoutputsperhospital_omega100_p1,
+            boostedoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs3[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs3[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs3[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs3[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs3[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs3[i]; hidex=true, hidey=(i != 1))
+        end
+        linkaxes!(axs3...)
+        
+        # data 
+        # greatest and least number of cases 
+        m, maxind = findmax(dataobserveddiagnosesafterjuly)
+        m, minind = findmin(dataobserveddiagnosesafterjuly)
+        
+        for (i, v) ∈ enumerate([
+            dataoutputsperhospital_omega100_m2, 
+            dataoutputsperhospital_omega100_m1,
+            dataoutputsperhospital_omega100_p1,
+            dataoutputsperhospital_omega100_p2,
+        ])
+            vspan!(
+                axs4[i],
+                531 + [ -62, -31, 30, 61 ][i],
+                621 + [ -62, -31, 30, 61 ][i];
+                color=( :gray, 0.1)
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, maxind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, maxind, :] 
+            )
+            plotcumulativecounterfactualvaccine!(
+                axs4[i], 
+                470:831,
+                v["predictdiagnoses"][470:831, minind, :],
+                dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
+                color=COLOURVECTOR[2]
+            )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs4[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
+            hlines!(axs4[i], 0; color=:black, linestyle=:dot)
+            vlines!(axs4[i], 531; color=:black, linestyle=:dot)
+            formataxis!(axs4[i]; hidey=(i != 1))
+        end
+        linkaxes!(axs4...)
+        fig    
+    end
+    fig
+end
 
 omega100changevaccinationdatefig = let 
     fig = with_theme(theme_latexfonts()) do
@@ -140,6 +683,17 @@ omega100changevaccinationdatefig = let
                 unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
                 color=COLOURVECTOR[2]
             )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs1[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
             hlines!(axs1[i], 0; color=:black, linestyle=:dot)
             vlines!(axs1[i], 531; color=:black, linestyle=:dot)
             formataxis!(axs1[i]; hidex=true, hidey=(i != 1))
@@ -176,6 +730,17 @@ omega100changevaccinationdatefig = let
                 midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
                 color=COLOURVECTOR[2]
             )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs2[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
             hlines!(axs2[i], 0; color=:black, linestyle=:dot)
             vlines!(axs2[i], 531; color=:black, linestyle=:dot)
             formataxis!(axs2[i]; hidex=true, hidey=(i != 1))
@@ -212,6 +777,17 @@ omega100changevaccinationdatefig = let
                 boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
                 color=COLOURVECTOR[2]
             )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs3[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
             hlines!(axs3[i], 0; color=:black, linestyle=:dot)
             vlines!(axs3[i], 531; color=:black, linestyle=:dot)
             formataxis!(axs3[i]; hidex=true, hidey=(i != 1))
@@ -248,6 +824,17 @@ omega100changevaccinationdatefig = let
                 dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, minind, :];
                 color=COLOURVECTOR[2]
             )
+            for j ∈ 1:23 
+                j == maxind && continue
+                j == minind && continue 
+                plotcumulativecounterfactualvaccine!(
+                    axs4[i], 
+                    470:831,
+                    v["predictdiagnoses"][470:831, j, :],
+                    dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
+                    color=( :gray, 0.1 ),
+                )
+            end
             hlines!(axs4[i], 0; color=:black, linestyle=:dot)
             vlines!(axs4[i], 531; color=:black, linestyle=:dot)
             formataxis!(axs4[i]; hidey=(i != 1))
@@ -257,7 +844,6 @@ omega100changevaccinationdatefig = let
     end
     fig
 end
-
 
 omega180changevaccinationdatefig = let 
     fig = with_theme(theme_latexfonts()) do
@@ -310,7 +896,7 @@ omega180changevaccinationdatefig = let
                     470:831,
                     v["predictdiagnoses"][470:831, j, :],
                     unboostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
-                    color=( :gray, 0.05),
+                    color=( :gray, 0.1 ),
                 )
             end
             hlines!(axs1[i], 0; color=:black, linestyle=:dot)
@@ -334,7 +920,7 @@ omega180changevaccinationdatefig = let
                 axs2[i],
                 531 + [ -62, -31, 30, 61 ][i],
                 621 + [ -62, -31, 30, 61 ][i];
-                color=( :gray, 0.1)
+                color=( :gray, 0.1 )
             )
             plotcumulativecounterfactualvaccine!(
                 axs2[i], 
@@ -357,7 +943,7 @@ omega180changevaccinationdatefig = let
                     470:831,
                     v["predictdiagnoses"][470:831, j, :],
                     midboostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
-                    color=( :gray, 0.05),
+                    color=( :gray, 0.1 ),
                 )
             end
             hlines!(axs2[i], 0; color=:black, linestyle=:dot)
@@ -404,7 +990,7 @@ omega180changevaccinationdatefig = let
                     470:831,
                     v["predictdiagnoses"][470:831, j, :],
                     boostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses[470:831, j, :];
-                    color=( :gray, 0.05),
+                    color=( :gray, 0.1 ),
                 )
             end
             hlines!(axs3[i], 0; color=:black, linestyle=:dot)
@@ -451,7 +1037,7 @@ omega180changevaccinationdatefig = let
                     470:831,
                     v["predictdiagnoses"][470:831, j, :],
                     dataoutputsperhospital_omega180["predictdiagnoses"][470:831, j, :];
-                    color=( :gray, 0.05),
+                    color=( :gray, 0.1 ),
                 )
             end
             hlines!(axs4[i], 0; color=:black, linestyle=:dot)
