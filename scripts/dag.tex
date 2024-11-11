@@ -1,0 +1,149 @@
+\documentclass{minimal}
+
+\usepackage{tikz}
+\usetikzlibrary{
+	arrows.meta,
+	decorations.pathmorphing,
+	backgrounds,
+	positioning,
+	fit,
+	petri,
+	shapes.misc,
+	graphs,
+	quotes,
+	decorations.pathreplacing,
+	calc,
+}
+
+\begin{document}
+	
+	\pagestyle{empty}
+	
+	\begin{tikzpicture}[
+		> = stealth, % arrow head style
+		shorten > = 1pt, % don't touch arrow head to node
+		auto,
+		node distance = 2.1cm, % distance between nodes
+		semithick % line style
+		]
+		
+		\tikzstyle{every state}=[
+		draw = black,
+		thick,
+		fill = white,
+		minimum size = 4mm
+		]
+		\node (n01) {$i_{\mathrm{c}}(0)$};
+		\node (n02) [right of=n01] {$\mathbf{\ell}(0)$};
+		\node (n03) [right of=n02] {$i_{\mathrm{p}}(0)$};
+		\node (n04) [right of=n03] {$i_{\mathrm{h}}(0)$};
+		\node (n05)[state] [right of=n04] {$r_{\mathrm{h}}(0)$};
+		
+		\node (n11) [below of = n01] {$i_{\mathrm{c}}(1)$};
+		\node (n12) [right of=n11] {$\mathbf{\ell}(1)$};
+		\node (n13) [right of=n12] {$i_{\mathrm{p}}(1)$};
+		\node (n14) [right of=n13] {$i_{\mathrm{h}}(1)$};
+		\node (n15)[state] [right of=n14] {$r_{\mathrm{h}}(1)$};
+		
+		\node (n21) [below of = n11] {$i_{\mathrm{c}}(2)$};
+		\node (n22) [right of=n21] {$\mathbf{\ell}(2)$};
+		\node (n23) [right of=n22] {$i_{\mathrm{p}}(2)$};
+		\node (n24) [right of=n23] {$i_{\mathrm{h}}(2)$};
+		\node (n25)[state] [right of=n24] {$r_{\mathrm{h}}(2)$};
+		
+		\node (n31) [below of = n21] {$i_{\mathrm{c}}(3)$};
+		\node (n32) [right of=n31] {$\mathbf{\ell}(3)$};
+		\node (n33) [right of=n32] {$i_{\mathrm{p}}(3)$};
+		\node (n34) [right of=n33] {$i_{\mathrm{h}}(3)$};
+		\node (n35)[state] [right of=n34] {$r_{\mathrm{h}}(3)$};
+		
+		\node (n41) [below of = n31] {$i_{\mathrm{c}}(4)$};
+		\node (n42) [right of=n41] {$\mathbf{\ell}(4)$};
+		\node (n43) [right of=n42] {$i_{\mathrm{p}}(4)$};
+		\node (n44) [right of=n43] {$i_{\mathrm{h}}(4)$};
+		\node (n45)[state] [right of=n44] {$r_{\mathrm{h}}(4)$};
+		
+		
+		% Add a pre-r(t_1) value 
+		
+		\path[->] (n01) edge (n11);
+		\path[->] (n01) edge (n13);
+		\path[->] (n01) edge (n14);
+		\path[->] (n01) edge[red,densely dashed] (n15);
+		\path[->] (n02) edge (n12);	
+		\path[->] (n02) edge (n13);	
+		\path[->] (n02) edge (n14);
+		\path[->] (n02) edge[red,densely dashed] (n15);
+		\path[->] (n03) edge (n13);
+		\path[->] (n03) edge (n14);
+		\path[->] (n03) edge[red,densely dashed] (n15);
+		\path[->] (n04) edge (n13);
+		\path[->] (n04) edge (n14);
+		\path[->] (n04) edge (n15);
+		\path[->] (n05) edge (n14);
+		\path[->] (n05) edge (n15);
+		
+		\path[->] (n11) edge (n21);
+		\path[->] (n11) edge (n23);
+		\path[->] (n11) edge (n24);
+		\path[->] (n11) edge[red,densely dashed] (n25);
+		\path[->] (n12) edge (n22);	
+		\path[->] (n12) edge (n23);	
+		\path[->] (n12) edge (n24);
+		\path[->] (n12) edge[red,densely dashed] (n25);
+		\path[->] (n13) edge (n23);
+		\path[->] (n13) edge (n24);
+		\path[->] (n13) edge[red,densely dashed] (n25);
+		\path[->] (n14) edge (n23);
+		\path[->] (n14) edge (n24);
+		\path[->] (n14) edge (n25);
+		\path[->] (n15) edge (n24);
+		\path[->] (n15) edge (n25);
+		
+		\path[->] (n21) edge (n31);
+		\path[->] (n21) edge (n33);
+		\path[->] (n21) edge (n34);
+		\path[->] (n21) edge[red,densely dashed] (n35);
+		\path[->] (n22) edge (n32);	
+		\path[->] (n22) edge (n33);	
+		\path[->] (n22) edge (n34);
+		\path[->] (n22) edge[red,densely dashed] (n35);
+		\path[->] (n23) edge (n33);
+		\path[->] (n23) edge (n34);
+		\path[->] (n23) edge[red,densely dashed] (n35);
+		\path[->] (n24) edge (n33);
+		\path[->] (n24) edge (n34);
+		\path[->] (n24) edge (n35);
+		\path[->] (n25) edge (n34);
+		\path[->] (n25) edge (n35);
+		
+		\path[->] (n31) edge (n41);
+		\path[->] (n31) edge (n43);
+		\path[->] (n31) edge (n44);
+		\path[->] (n31) edge[red,densely dashed] (n45);
+		\path[->] (n32) edge (n42);	
+		\path[->] (n32) edge (n43);	
+		\path[->] (n32) edge (n44);
+		\path[->] (n32) edge[red,densely dashed] (n45);
+		\path[->] (n33) edge (n43);
+		\path[->] (n33) edge (n44);
+		\path[->] (n33) edge[red,densely dashed] (n45);
+		\path[->] (n34) edge (n43);
+		\path[->] (n34) edge (n44);
+		\path[->] (n34) edge (n45);
+		\path[->] (n35) edge (n44);
+		\path[->] (n35) edge (n45);
+		
+		
+		
+		%\path[->] (n01) edge[lightgray] (n12);
+		%\path[->] (n01) edge[lightgray] (n13);
+		%\path[->] (n01) edge[lightgray,bend left=3] (n14);
+		%\path[->] (n01) edge[lightgray] (n15);
+		%\path[->] (n01) edge[lightgray] (n05);
+		
+		
+		%\path[->] (n23) edge[red,densely dashed] (n35);
+	\end{tikzpicture}
+	
+\end{document}
