@@ -767,3 +767,39 @@ function _processoutputsperhospitalforcepsi!(df, forcepsi::Number)
         df.ψ[i] = forcepsi 
     end
 end
+
+function producecounterfactualoutputsdict(
+    data::DataFrame, 
+    coviddata::DataFrame, 
+    filenamestart::AbstractString, 
+    counterfactualvaccinations::Vector{<:AbstractVector}, 
+    jseries; 
+    kwargs...
+)
+    m2 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[1], jseries; kwargs...
+    )
+    m1 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[2], jseries; kwargs...
+    )
+    p1 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[3], jseries; kwargs...
+    )
+    p2 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[4], jseries; kwargs...
+    )
+    return @dict m2 m1 p1 p2
+end
+
+function producecounterfactualoutputsdict(
+    data::DataFrame, 
+    filenamestart, 
+    counterfactualvaccinations::Vector{<:AbstractVector}, 
+    jseries; 
+    kwargs...
+)
+    return producecounterfactualoutputsdict(
+        data, data, filenamestart, counterfactualvaccinations, jseries; 
+        kwargs...
+    )
+end

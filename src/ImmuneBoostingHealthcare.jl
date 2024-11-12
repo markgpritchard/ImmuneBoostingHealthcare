@@ -24,6 +24,7 @@ export
     calculatelambdac, calculatelambdacs, countdates, counthospitals, datamatrices, fitmodel, 
     fitmodelperhospital, hcwseiirrr, hcwseiirrr_isolating, hcwseiirrr_isolating!, 
     hospitalconditionmatrices, loadchainsdf, loadchainsperhospitaldf, predictdiagnoses, 
-    predicttotaldiagnoses, processoutputs, processoutputsperhospital
+    predicttotaldiagnoses, processoutputs, processoutputsperhospital, 
+    producecounterfactualoutputsdict
 
 end  # module ImmuneBoostingHealthcare

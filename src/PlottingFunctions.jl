@@ -9,9 +9,9 @@ using CairoMakie, DataFrames, StatsBase
 import ImmuneBoostingHealthcare: Automatic, automatic
 
 export COLOUR_I, COLOUR_R, COLOUR_S, COLOURVECTOR, estimateeffectofboosting, formataxis!, 
-    formataxishidespines!, labelplots!, plotchains, plotcounterfactualvaccine!, 
-    plotcumulativecounterfactualvaccine!, plothospitaloutputs, plotoutputs, plotoutputs!, 
-    setorigin!, setvalue!
+    formataxishidespines!, labelplots!, plotcaseswithchangedvaccinationdates!, plotchains, 
+    plotcounterfactualvaccine!, plotcumulativecounterfactualvaccine!, plothospitaloutputs, 
+    plotoutputs, plotoutputs!, setorigin!, setvalue!
 
 # Consistent colour scheme across plots 
 
@@ -420,6 +420,83 @@ end
 
 function _rankindicesoftotaldiagnoses(::Any, observeddiagnosis::AbstractVector)
     return _rankindicesoftotaldiagnoses(observeddiagnosis, automatic)
+end
+
+function plotcaseswithchangedvaccinationdates!(
+    fig::Figure, dates, observedcasesvector, modelledcasesvector, counterfactualsvector;
+    xticks=(
+        [ 469, 561, 653, 743, 834 ],
+        [ "July", "Oct.", "Jan.", "April", "July" ]
+    ),
+    kwargs...
+)
+    for (axs, observedcases, modelledcases, counterfactuals, hidex) ∈ zip(
+        [ axs1, axs2, axs3, axs4 ],
+        observedcasesvector,
+        modelledcasesvector,
+        counterfactualsvector,
+        [ true, true, true, false ]
+    )
+        plotcaseswithchangedvaccinationdates!(
+            axs, dates, observedcases, modelledcases, counterfactuals;
+            hidex, kwargs...
+        )
+    end
+end
+
+function plotcaseswithchangedvaccinationdates!(
+    axs::Vector{<:Axis}, dates, observedcases, modelledcases, counterfactuals;
+    hidex=false,
+    maxcolour=COLOURVECTOR[1],
+    mincolour=COLOURVECTOR[2],
+    otherhospitalscolour=( :gray, 0.1 ),
+    nhospitals=23,
+    vaccinationtimes=( 531, 621 ),
+    vspancolour=( :gray, 0.1),
+)
+    # greatest and least number of cases 
+    m, maxind = findmax(observedcases)
+    m, minind = findmin(observedcases)
+
+    @unpack m2, m1, p1, p2 = counterfactuals
+        
+    for (i, v) ∈ enumerate([ m2, m1, p1, p2 ])
+        vspan!(
+            axs[i],
+            vaccinationtimes[1] + [ -62, -31, 30, 61 ][i],
+            vaccinationtimes[2] + [ -62, -31, 30, 61 ][i];
+            color=vspancolour
+        )
+        plotcumulativecounterfactualvaccine!(
+            axs[i], 
+            dates,
+            v["predictdiagnoses"][dates, maxind, :],
+            modelledcases[dates, maxind, :];
+            color=maxcolour 
+        )
+        plotcumulativecounterfactualvaccine!(
+            axs[i], 
+            dates,
+            v["predictdiagnoses"][dates, minind, :],
+            modelledcases[dates, minind, :];
+            color=mincolour
+        )
+        for j ∈ 1:nhospitals 
+            j == maxind && continue
+            j == minind && continue 
+            plotcumulativecounterfactualvaccine!(
+                axs[i], 
+                dates,
+                v["predictdiagnoses"][dates, j, :],
+                modelledcases[dates, j, :];
+                color=otherhospitalscolour,
+            )
+        end
+        hlines!(axs[i], 0; color=:black, linestyle=:dot)
+        vlines!(axs[i], vaccinationtimes[1]; color=:black, linestyle=:dot)
+        formataxis!(axs[i]; hidex, hidey=(i != 1))
+    end
+    linkaxes!(axs...)
 end
 
 
