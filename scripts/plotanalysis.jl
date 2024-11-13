@@ -46,24 +46,32 @@ plotchains(datadf_omega100; columns=COLSFORCHAINPLOTS)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 unboostedoutputs180 = load(datadir("sims", "unboostedoutputs180.jld2"))
+midboostedoutputs180 = load(datadir("sims", "midboostedoutputs180.jld2"))
+boostedoutputs180 = load(datadir("sims", "boostedoutputs180.jld2"))
+dataoutputs180 = load(datadir("sims", "dataoutputs180.jld2"))
 
 omega180changevaccinationdatefig = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 587, 500 ))
     plotcaseswithchangedvaccinationdates!(
         fig, 
         470:831,  # dates
-        [unboostedoutputs180, midboostedoutputs180, boostedoutputs180, dataoutputs180 ]
+        [ unboostedoutputs180, midboostedoutputs180, boostedoutputs180, dataoutputs180 ]
     )
     fig
 end
 safesave(plotsdir("omega180changevaccinationdatefig.pdf"), omega180changevaccinationdatefig)
+
+unboostedoutputs100 = load(datadir("sims", "unboostedoutputs100.jld2"))
+midboostedoutputs100 = load(datadir("sims", "midboostedoutputs100.jld2"))
+boostedoutputs100 = load(datadir("sims", "boostedoutputs100.jld2"))
+dataoutputs100 = load(datadir("sims", "dataoutputs100.jld2"))
 
 omega100changevaccinationdatefig = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 587, 500 ))
     plotcaseswithchangedvaccinationdates!(
         fig, 
         470:831,  # dates
-        [unboostedoutputs100, midboostedoutputs100, boostedoutputs100, dataoutputs100 ]
+        [ unboostedoutputs100, midboostedoutputs100, boostedoutputs100, dataoutputs100 ]
     )
     fig
 end
