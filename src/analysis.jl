@@ -884,8 +884,7 @@ function _sendtoprocessoutputsperhospital(obs::DataFrame, coviddata, args...; kw
 end
 
 function _sendtoprocessoutputsperhospital(obs::Matrix, coviddata, args...; kwargs...)  
-    # if `observations` is a Matrix then the function is being called about the data, not a
-    # simulation
+    # if `observations` is a Matrix then function being called about data, not a simulation
     return processoutputsperhospital(coviddata, args...; dateid=:t, kwargs...)
 end
 
