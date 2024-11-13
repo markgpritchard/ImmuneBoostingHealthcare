@@ -8,8 +8,6 @@ using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
 import ImmuneBoostingHealthcare: Automatic, automatic
 
-#include("processanalysis.jl")
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Chains

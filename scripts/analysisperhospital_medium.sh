@@ -12,11 +12,12 @@ module load Julia/1.9.3-linux-x86_64
 n_rounds=12
 omega=0.00556
 
-for n in {1..4}
+for n in {1..3}
 do
 	julia scripts/analysesimsperhospital.jl "$n" "$n_rounds" "boostedsimulation" "$omega" &
 	julia scripts/analysesimsperhospital.jl "$n" "$n_rounds" "unboostedsimulation" "$omega" &
-        julia scripts/analysedataperhospital.jl "$n" "$n_rounds" "$omega" &
+        julia scripts/analysesimsperhospital.jl "$n" "$n_rounds" "midboostedsimulation" "$omega" &
+	julia scripts/analysedataperhospital.jl "$n" "$n_rounds" "$omega" &
 done
 
 wait
