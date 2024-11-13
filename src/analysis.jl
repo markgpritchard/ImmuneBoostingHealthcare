@@ -879,33 +879,20 @@ end
 _filterdfforprocessoutputs!(df, selectchains) = filter!(:chain => x -> x ∈ selectchains, df)
 _filterdfforprocessoutputs!(::Any, ::Automatic) = nothing
 
-function _sendtoprocessoutputsperhospital(
-    observations::DataFrame, coviddata::DataFrame, args...; 
-    kwargs...
-)
-    return processoutputsperhospital(observations, coviddata, args...; dateid=:t, kwargs...)
+function _sendtoprocessoutputsperhospital(obs::DataFrame, coviddata, args...; kwargs...)
+    return processoutputsperhospital(obs, coviddata, args...; dateid=:t, kwargs...)
 end
 
-function _sendtoprocessoutputsperhospital(
-    observations::Matrix, coviddata::DataFrame, args...; 
-    kwargs...
-)  # if `observations` is a matrix then the function is being called about the data, not a simulation
+function _sendtoprocessoutputsperhospital(obs::Matrix, coviddata, args...; kwargs...)  
+    # if `observations` is a Matrix then the function is being called about the data, not a
+    # simulation
     return processoutputsperhospital(coviddata, args...; dateid=:t, kwargs...)
 end
 
-function _sendtoproducecounterfactualoutputsdict(
-    observations::DataFrame, coviddata::DataFrame, args...; 
-    kwargs...
-)
-    return producecounterfactualoutputsdict(
-        observations, coviddata, args...; 
-        dateid=:t, kwargs...
-    )
+function _sendtoproducecounterfactualoutputsdict(obs::DataFrame, coviddf, args...; kwargs...)
+    return producecounterfactualoutputsdict(obs, coviddf, args...; dateid=:t, kwargs...)
 end
 
-function _sendtoproducecounterfactualoutputsdict(
-    observations::Matrix, coviddata::DataFrame, args...; 
-    kwargs...
-)
-    return producecounterfactualoutputsdict(coviddata, args...; dateid=:t, kwargs...)
+function _sendtoproducecounterfactualoutputsdict(obs::Matrix, coviddf, args...; kwargs...)
+    return producecounterfactualoutputsdict(coviddf, args...; dateid=:t, kwargs...)
 end
