@@ -302,16 +302,9 @@ end
 
 function plotcumulativecounterfactualvaccine!(
     ax, dates, quantiles::AbstractVector{<:AbstractVector{<:Real}};
-    color=COLOURVECTOR[1]
+    color=COLOURVECTOR[1], colorrange=Makie.automatic,
 )
-    lines!(ax, dates, [ quantiles[i][2] for i ∈ eachindex(quantiles) ]; color)
-    band!(
-        ax, 
-        dates, 
-        [ quantiles[i][1] for i ∈ eachindex(quantiles) ], 
-        [ quantiles[i][3] for i ∈ eachindex(quantiles) ];
-        color=( color, 0.25),
-    )
+    lines!(ax, dates, [ quantiles[i][2] for i ∈ eachindex(quantiles) ]; color, colorrange)
 end
 
 function plotcumulativecounterfactualvaccine!(
@@ -430,6 +423,11 @@ function plotcaseswithchangedvaccinationdates!(
     ),
     kwargs...
 )
+    axs1 = [ Axis(fig[1, i]; xticks) for i ∈ 1:4 ]
+    axs2 = [ Axis(fig[2, i]; xticks) for i ∈ 1:4 ]
+    axs3 = [ Axis(fig[3, i]; xticks) for i ∈ 1:4 ]
+    axs4 = [ Axis(fig[4, i]; xticks) for i ∈ 1:4 ]
+
     for (axs, observedcases, modelledcases, counterfactuals, hidex) ∈ zip(
         [ axs1, axs2, axs3, axs4 ],
         observedcasesvector,
@@ -445,6 +443,24 @@ function plotcaseswithchangedvaccinationdates!(
 end
 
 function plotcaseswithchangedvaccinationdates!(
+    fig::Figure, dates, outputsdicts::Vector{<:Dict};
+    kwargs...
+)
+    observedcasesvector = Vector{Vector{Float64}}(undef, 4)
+    modelledcasesvector = Vector{Array{Float64, 3}}(undef, 4)
+
+    for i ∈ 1:4
+        observedcasesvector[i] = outputsdicts[i]["observationssincejuly"]
+        modelledcasesvector[i] = outputsdicts[i]["modelledoutput"]["predictdiagnoses"]
+    end
+
+    plotcaseswithchangedvaccinationdates!(
+        fig, dates, observedcasesvector, modelledcasesvector, outputsdicts;
+        kwargs...
+    )
+end
+
+function plotcaseswithchangedvaccinationdates!(
     axs::Vector{<:Axis}, dates, observedcases, modelledcases, counterfactuals;
     hidex=false,
     maxcolour=COLOURVECTOR[1],
@@ -455,8 +471,8 @@ function plotcaseswithchangedvaccinationdates!(
     vspancolour=( :gray, 0.1),
 )
     # greatest and least number of cases 
-    m, maxind = findmax(observedcases)
-    m, minind = findmin(observedcases)
+    minobs, = findmax(observedcases)
+    maxobs, = findmin(observedcases)
 
     @unpack m2, m1, p1, p2 = counterfactuals
         
@@ -467,7 +483,7 @@ function plotcaseswithchangedvaccinationdates!(
             vaccinationtimes[2] + [ -62, -31, 30, 61 ][i];
             color=vspancolour
         )
-        plotcumulativecounterfactualvaccine!(
+        #=plotcumulativecounterfactualvaccine!(
             axs[i], 
             dates,
             v["predictdiagnoses"][dates, maxind, :],
@@ -480,16 +496,14 @@ function plotcaseswithchangedvaccinationdates!(
             v["predictdiagnoses"][dates, minind, :],
             modelledcases[dates, minind, :];
             color=mincolour
-        )
+        )=#
         for j ∈ 1:nhospitals 
-            j == maxind && continue
-            j == minind && continue 
             plotcumulativecounterfactualvaccine!(
                 axs[i], 
                 dates,
                 v["predictdiagnoses"][dates, j, :],
                 modelledcases[dates, j, :];
-                color=otherhospitalscolour,
+                color=observedcases[j], colorrange=[ minobs, maxobs ]
             )
         end
         hlines!(axs[i], 0; color=:black, linestyle=:dot)

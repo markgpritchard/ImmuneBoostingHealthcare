@@ -8,8 +8,7 @@ using CairoMakie, CategoricalArrays, CSV, DataFrames, Dates, Pigeons, StatsBase
 using .PlottingFunctions
 import ImmuneBoostingHealthcare: Automatic, automatic
 
-include("analysesimssetup.jl")
-include("processanalysis.jl")
+#include("processanalysis.jl")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -46,33 +45,28 @@ plotchains(datadf_omega100; columns=COLSFORCHAINPLOTS)
 # Changes in numbers of cases with changes in vaccination times
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+unboostedoutputs180 = load(datadir("sims", "unboostedoutputs180.jld2"))
+
+omega180changevaccinationdatefig = with_theme(theme_latexfonts()) do
+    fig = Figure(; size=( 587, 500 ))
+    plotcaseswithchangedvaccinationdates!(
+        fig, 
+        470:831,  # dates
+        [unboostedoutputs180, midboostedoutputs180, boostedoutputs180, dataoutputs180 ]
+    )
+    fig
+end
+safesave(plotsdir("omega180changevaccinationdatefig.pdf"), omega180changevaccinationdatefig)
+
 omega100changevaccinationdatefig = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 587, 500 ))
     plotcaseswithchangedvaccinationdates!(
         fig, 
         470:831,  # dates
-        [  # observedcasesvector
-            unboostedobserveddiagnosesafterjuly,
-            midboostedobserveddiagnosesafterjuly,
-            boostedobserveddiagnosesafterjuly,
-            dataobserveddiagnosesafterjuly
-        ],
-        [  # modelledcasesvector
-            unboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses,
-            midboostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses,
-            boostedoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses,
-            dataoutputsperhospital_omega100_diagnosesafterjuly.predicteddiagnoses
-        ],
-        [  # counterfactualsvector
-            unboostedoutputsperhospital_omega100_counterfactuals,
-            midboostedoutputsperhospital_omega100_counterfactuals,
-            boostedoutputsperhospital_omega100_counterfactuals,
-            dataoutputsperhospital_omega100_counterfactuals 
-        ]
+        [unboostedoutputs100, midboostedoutputs100, boostedoutputs100, dataoutputs100 ]
     )
     fig
 end
-
 safesave(plotsdir("omega100changevaccinationdatefig.pdf"), omega100changevaccinationdatefig)
 
 

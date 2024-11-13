@@ -803,3 +803,78 @@ function producecounterfactualoutputsdict(
         kwargs...
     )
 end
+
+function processoutputsdict(
+    observations,
+    coviddata, 
+    fittedvalueslocation::AbstractString,
+    vaccinations, 
+    counterfactualvaccinations::Dict;
+    dates, jseries, omega, selectchains=automatic,
+)
+    observationssincejuly = findobservationssincejuly(observations; dates)
+    df = loadchainsperhospitaldf(fittedvalueslocation; jseries, omega)
+    filtereddf = _filterdfforprocessoutputs(df, selectchains) 
+    modelledoutput = processoutputsperhospital(
+        observations, coviddata, fittedvalueslocation, vaccinations, jseries; 
+        dateid=:t, omega, selectchains,
+    )
+    @unpack m2, m1, p1, p2 = producecounterfactualoutputsdict(
+        observations, 
+        coviddata, 
+        fittedvalueslocation,
+        [ 
+            counterfactualvaccinations["minus2months"], 
+            counterfactualvaccinations["minus1month"], 
+            counterfactualvaccinations["plus1month"], 
+            counterfactualvaccinations["plus2months"] 
+        ], 
+        jseries; 
+        dateid=:t, daterange=dates, omega, selectchains,
+    )
+    return @strdict observationssincejuly df filtereddf modelledoutput m2 m1 p1 p2
+end
+
+function processoutputsdict(
+    observations,
+    fittedvalueslocation::AbstractString,
+    vaccinations, 
+    counterfactualvaccinations::Dict;
+    kwargs...
+)
+    return processoutputsdict(
+        observations, 
+        observations, 
+        fittedvalueslocation, 
+        vaccinations, 
+        counterfactualvaccinations;
+        kwargs...
+    )
+end
+
+function findobservationssincejuly(
+    observations::DataFrame; 
+    dates, 
+    idcode=:StringCodes, newabsencecode=:StaffNewAbsences, totalstaffcode=:StaffTotal, t=:t
+)
+    return [
+        (
+            d = filter([ idcode, t ] => (x, y) -> x == c && y ∈ dates, observations);
+            sum(getproperty(d, newabsencecode)) ./ getproperty(d, totalstaffcode)[1]
+        )
+        for c ∈ unique(getproperty(observations, idcode))
+    ]
+end
+
+function findobservationssincejuly(observations::Matrix; dates)
+    return [ sum(@view observations[dates, i]) for i ∈ axes(observations, 2) ]
+end
+
+function _filterdfforprocessoutputs(df, selectchains) 
+    filtereddf = deepcopy(df)
+    _filterdfforprocessoutputs!(filtereddf, selectchains) 
+    return filtereddf
+end
+
+_filterdfforprocessoutputs!(df, selectchains) = filter!(:chain => x -> x ∈ selectchains, df)
+_filterdfforprocessoutputs!(::Any, ::Automatic) = nothing
