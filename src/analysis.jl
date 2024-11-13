@@ -815,11 +815,11 @@ function processoutputsdict(
     observationssincejuly = findobservationssincejuly(observations; dates)
     df = loadchainsperhospitaldf(fittedvalueslocation; jseries, omega)
     filtereddf = _filterdfforprocessoutputs(df, selectchains) 
-    modelledoutput = processoutputsperhospital(
+    modelledoutput = _sendtoprocessoutputsperhospital(
         observations, coviddata, fittedvalueslocation, vaccinations, jseries; 
-        dateid=:t, omega, selectchains,
+        omega, selectchains,
     )
-    @unpack m2, m1, p1, p2 = producecounterfactualoutputsdict(
+    @unpack m2, m1, p1, p2 = _sendtoproducecounterfactualoutputsdict(
         observations, 
         coviddata, 
         fittedvalueslocation,
@@ -830,7 +830,7 @@ function processoutputsdict(
             counterfactualvaccinations["plus2months"] 
         ], 
         jseries; 
-        dateid=:t, daterange=dates, omega, selectchains,
+        daterange=dates, omega, selectchains,
     )
     return @strdict observationssincejuly df filtereddf modelledoutput m2 m1 p1 p2
 end
@@ -878,3 +878,34 @@ end
 
 _filterdfforprocessoutputs!(df, selectchains) = filter!(:chain => x -> x ∈ selectchains, df)
 _filterdfforprocessoutputs!(::Any, ::Automatic) = nothing
+
+function _sendtoprocessoutputsperhospital(
+    observations::DataFrame, coviddata::DataFrame, args...; 
+    kwargs...
+)
+    return processoutputsperhospital(observations, coviddata, args...; dateid=:t, kwargs...)
+end
+
+function _sendtoprocessoutputsperhospital(
+    observations::Matrix, coviddata::DataFrame, args...; 
+    kwargs...
+)  # if `observations` is a matrix then the function is being called about the data, not a simulation
+    return processoutputsperhospital(coviddata, args...; dateid=:t, kwargs...)
+end
+
+function _sendtoproducecounterfactualoutputsdict(
+    observations::DataFrame, coviddata::DataFrame, args...; 
+    kwargs...
+)
+    return producecounterfactualoutputsdict(
+        observations, coviddata, args...; 
+        dateid=:t, kwargs...
+    )
+end
+
+function _sendtoproducecounterfactualoutputsdict(
+    observations::Matrix, coviddata::DataFrame, args...; 
+    kwargs...
+)
+    return producecounterfactualoutputsdict(coviddata, args...; dateid=:t, kwargs...)
+end
