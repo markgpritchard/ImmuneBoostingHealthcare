@@ -19,6 +19,17 @@ struct HCWSEIIRRRp{S, T, U} <: AbstractParameters{S, T, U}
     θ       :: S    # proportion diagnosed
 end
 
+struct HCWSEIIRRRvp{S, T, U} <: AbstractParameters{S, T, U} 
+    βh      :: S    # infection rate from other healthcare workers
+    βp      :: S    # infection rate from patients
+    η       :: T    # rate of leaving exposed compartments 
+    γ       :: T    # rate of leaving infectious compartment
+    ψ       :: T    # strength of "force of boosting" relative to λ
+    nu      :: U    # healthcare worker vaccination rate
+    ω       :: S    # rate of immune waning 
+    θ       :: S    # proportion diagnosed
+end
+
 struct SEIIRRRSp{S, T, U} <: AbstractParameters{S, T, U} 
     β       :: S    # infection rate 
     η       :: T    # rate of leaving exposed compartments 

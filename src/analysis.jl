@@ -71,6 +71,40 @@ function hcwseiirrr(
     return new_u
 end
 
+function hcwseiirrr(  # version where vaccination is given as a parameter
+    u, p::HCWSEIIRRRvp{S, T, U}, t::Integer, λc::Number, patients::Number
+) where {S <: Number, T <: Number, U <: Function}
+    S, E, I, I′1, I′2, I′3, I′4, I′5, I′6, I′7, I′8, I′9, I′10, R1, R2, R3 = u 
+
+    λ = 1 - exp(-(λc + p.βp * patients + p.βh * I))
+    λψ = p.nu(t) + (1 - exp(-p.ψ * (λc + p.βp * patients + p.βh * I))) * (1 - vaccinated)
+
+    new_u = [
+        S * (1 - λ - vaccinated * (1 - λ)) + R3 * 3 * p.ω * (1 - λψ),  # S 
+        E * (1 - p.η) + λ * S,  # E 
+        I * (1 - p.θ - p.γ * (1 - p.θ)) + p.η * E,  # I 
+        p.θ * I,  # I′1
+        I′1,  # I′2
+        I′2,  # I′3
+        I′3,  # I′4
+        I′4,  # I′5
+        I′5,  # I′6
+        I′6,  # I′7
+        I′7,  # I′8
+        I′8,  # I′9
+        I′9,  # I′10
+        # R1:
+        R1 * (1 - 3 * p.ω * (1 - λψ)) +  # previous R1 that has not waned
+            S * (vaccinated * (1 - λ)) +   # vaccinated from S 
+            p.γ * (1 - p.θ) * I +  # recovered 
+            I′10 +  # ended isolation 
+            λψ * (R2 + R3),  # boosted by exposure or vaccination from R2 and R3 
+        R2 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R1 * 3 * p.ω * (1 - λψ),  # R3
+        R3 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R2 * 3 * p.ω * (1 - λψ),  # R3
+    ]
+    return new_u
+end
+
 function hcwseiirrr_isolating(
     u0, p, tspan::AbstractVector{<:Integer}, λc, patients, vaccinated, j=1
 )
