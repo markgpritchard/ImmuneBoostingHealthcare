@@ -70,7 +70,7 @@ function hcwseiirrr(
     ]
     return new_u
 end
-
+#=
 function hcwseiirrr(  # version where vaccination is given as a parameter
     u, p::HCWSEIIRRRvp{S, T, U}, t::Integer, λc::Number, patients::Number
 ) where {S <: Number, T <: Number, U <: Function}
@@ -104,7 +104,7 @@ function hcwseiirrr(  # version where vaccination is given as a parameter
     ]
     return new_u
 end
-
+=#
 function hcwseiirrr_isolating(
     u0, p, tspan::AbstractVector{<:Integer}, λc, patients, vaccinated, j=1
 )

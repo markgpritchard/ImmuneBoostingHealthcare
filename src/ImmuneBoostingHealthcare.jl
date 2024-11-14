@@ -5,6 +5,14 @@ using DrWatson
 using CategoricalArrays, DataFrames, Dates, Distributions, StaticArrays, StatsBase, Turing
 import Base: minimum
 
+include("model.jl")
+
+export NegativeCompartmentSizeError
+
+export HCWSEIRRRVOutput, HCWSEIRRRParameters
+export addsusceptible!, advancetime!, becomeimmunefromvaccine!, boostR2!, boostR3!, countnewlydiagnosed, diagnose!, gettime, gettotaldiagnosed, gettotalimmune, get_n, get_E, get_I, get_R1, get_R2, get_R3, get_S, get_v, expose!, exposevaccinated!, progress!, recover!, vaccinateR2!, vaccinateR3!, vaccinateS!, wane1!, wane2!, wane3!
+
+#=
 include("structs.jl")
 include("consts.jl")
 include("simulations.jl")
@@ -26,5 +34,5 @@ export
     hcwseiirrr_isolating, hcwseiirrr_isolating!, hospitalconditionmatrices, loadchainsdf, 
     loadchainsperhospitaldf, predictdiagnoses, predicttotaldiagnoses, processoutputs, 
     processoutputsdict, processoutputsperhospital, producecounterfactualoutputsdict
-
+=#
 end  # module ImmuneBoostingHealthcare
