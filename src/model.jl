@@ -60,6 +60,10 @@ end
 HCWSEIRRRVOutput() = HCWSEIRRRVOutput(0, zeros(17)...)
 HCWSEIRRRVOutput(S::T) where T = HCWSEIRRRVOutput(0, S, zeros(T, 16)...)
 
+HCWSEIRRRVCPOutput(; I_c=0, N_c=0, I_p=0, N_p=0) = HCWSEIRRRVCPOutput(0, zeros(17)..., I_c, N_c, I_p, N_p)
+HCWSEIRRRVCPOutput(S::T; I_c=0, N_c=0, I_p=0, N_p=0)  where T = HCWSEIRRRVCPOutput(0, S, zeros(T, 16)..., I_c, N_c, I_p, N_p)
+
+
 abstract type AbstractParameters{S, T} end 
 
 struct HCWSEIRRRParameters{S, T} <: AbstractParameters{S, T}
@@ -80,7 +84,7 @@ function HCWSEIRRRParameters(; beta_c=0.0, beta_h=0.0, beta_p=0.0, gamma=0.0, si
 end
 
 gettime(a::AbstractModelOutputs) = a.t
-get_n(a::AbstractModelOutputs) = sum([ x for x ∈ a ])
+get_n(a::AbstractModelOutputs) = sum(@view [ x for x ∈ a ][2:18])
 get_S(a::AbstractModelOutputs) = a.S
 get_E(a::AbstractModelOutputs) = a.E
 get_I(a::AbstractModelOutputs) = a.I
@@ -101,12 +105,20 @@ function ==(a::AbstractModelOutputs, b::AbstractModelOutputs)
 end
 
 function iterate(a::HCWSEIRRRVOutput, state=0)
-    state >= 17 && return nothing 
-    return Base.getfield(a, state + 2), state + 1 
+    state >= 18 && return nothing 
+    return Base.getfield(a, state + 1), state + 1 
 end
 
-Base.HasLength(::HCWSEIRRRVOutput) = 17
-length(::HCWSEIRRRVOutput) = 17
+Base.HasLength(::HCWSEIRRRVOutput) = 18
+length(::HCWSEIRRRVOutput) = 18
+
+function iterate(a::HCWSEIRRRVCPOutput, state=0)
+    state >= 22 && return nothing 
+    return Base.getfield(a, state + 1), state + 1 
+end
+
+Base.HasLength(::HCWSEIRRRVCPOutput) = 22
+length(::HCWSEIRRRVCPOutput) = 22
 
 function iterate(a::HCWSEIRRRParameters, state=0)
     state >= 10 && return nothing 
@@ -115,6 +127,16 @@ end
 
 Base.HasLength(::HCWSEIRRRParameters) = 10
 length(::HCWSEIRRRParameters) = 10
+
+function runmodel(a, p)
+    nextgen = deepcopy(a)
+    runmodel!(nextgen, a, p)
+    return nextgen
+end
+
+function runmodel!(nextgen, a, p)
+    advancetime!(a)
+end
 
 
 function advancetime!(a::AbstractModelOutputs) 
@@ -134,6 +156,12 @@ function _moveindividuals!(a::AbstractModelOutputs, from, to, x)
 end
 
 expose!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :S, :E, x)
+
+function expose!(a::AbstractModelOutputs, p::HCWSEIRRRParameters)
+    _parameterdomain(p::HCWSEIRRRParameters)
+    _moveindividuals!(a, :S, :E, _numbertoinfect(a, p))
+end
+
 progress!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :E, :I, x)
 
 function progress!(a::AbstractModelOutputs, p::HCWSEIRRRParameters)
@@ -150,18 +178,20 @@ end
 
 recover!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :I, :R1, x) 
 recover!(a::AbstractModelOutputs, p::HCWSEIRRRParameters) = recover!(a, a.I * p.gamma * (1 - p.theta)) 
-wane1!(a::AbstractModelOutputs, x) = _wane!(a, :R1, :R2, x) 
-wane2!(a::AbstractModelOutputs, x) = _wane!(a, :R2, :R3, x) 
-wane3!(a::AbstractModelOutputs, x) = _wane!(a, :R3, :S, x) 
+wane1!(a::AbstractModelOutputs, x, t=nothing) = _wane!(a, :R1, :R2, x, t) 
+wane2!(a::AbstractModelOutputs, x, t=nothing) = _wane!(a, :R2, :R3, x, t) 
+wane3!(a::AbstractModelOutputs, x, t=nothing) = _wane!(a, :R3, :S, x, t) 
 vaccinateS!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :S, :V, x) 
 
-function vaccinateS!(a::HCWSEIRRRVOutput, p::HCWSEIRRRParameters{S,T}) where {S <: Any, T <: Number}
+function vaccinateS!(a::AbstractModelOutputs, p::HCWSEIRRRParameters{S,T}) where {S <: Any, T <: Number}
     _parameterdomain(p)
-    vaccinateS!(a, a.S * p.nu)
+    lambda = calculatelambda(a, p)
+    vaccinateS!(a, a.S * p.nu * (1 - lambda))
 end 
 
-function vaccinateS!(a::HCWSEIRRRVOutput, p::HCWSEIRRRParameters{S,T}, t) where {S <: Any, T <: Function}
+function vaccinateS!(a::AbstractModelOutputs, p::HCWSEIRRRParameters{S,T}, t) where {S <: Any, T <: Function}
     _parameterdomain(p, t)
+    lambda = calculatelambda(a, p)
     vaccinateS!(a, a.S * p.nu(t))
 end 
 
@@ -172,11 +202,49 @@ vaccinateR3!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :R3, :R1, x)
 boostR2!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :R2, :R1, x) 
 boostR3!(a::AbstractModelOutputs, x) = _moveindividuals!(a, :R3, :R1, x) 
 
-_wane!(a::AbstractModelOutputs, from, to, x::Number) = _moveindividuals!(a, from, to, x)
+function calculatelambdaprime_c(a::HCWSEIRRRVCPOutput, p::HCWSEIRRRParameters)
+    a.I_c < 0 && throw(DomainError(a.I_c, "number of infections in the community cannot be negative"))
+    a.N_c < 0 && throw(DomainError(a.I_c, "community population cannot be negative"))
+    return p.beta_c * a.I_c / a.N_c
+end
 
-function _wane!(a::AbstractModelOutputs, from, to, p::HCWSEIRRRParameters)
+function calculatelambdaprime_p(a::HCWSEIRRRVCPOutput, p::HCWSEIRRRParameters)
+    a.I_p < 0 && throw(DomainError(a.I_p, "number of infections among patients cannot be negative"))
+    a.N_p < 0 && throw(DomainError(a.I_p, "number of patients cannot be negative"))
+    return p.beta_p * a.I_p / a.N_p
+end
+
+function calculatelambdaprime_h(a::AbstractModelOutputs, p::HCWSEIRRRParameters)
+    return p.beta_h * get_I(a) / get_n(a)
+end
+
+calculatelambdaprime(a::HCWSEIRRRVOutput, p) = calculatelambdaprime_h(a, p)
+
+function calculatelambdaprime(a::HCWSEIRRRVCPOutput, p)
+    return calculatelambdaprime_c(a, p) + calculatelambdaprime_p(a, p) + calculatelambdaprime_h(a, p)
+end
+
+function calculatelambda(a, p)
+    return 1 - exp(-calculatelambdaprime(a, p))
+end
+
+function calculateboosting(a, p)
+    p.psi == 0 && return zero(1 - exp(-p.psi * calculatelambdaprime(a, p)))
+    return 1 - exp(-p.psi * calculatelambdaprime(a, p))
+end
+
+_wane!(a::AbstractModelOutputs, from, to, x::Number, ::Nothing) = _moveindividuals!(a, from, to, x)
+
+function _wane!(a::AbstractModelOutputs, from, to, p::HCWSEIRRRParameters{S, T}, ::Nothing) where {S <: Any, T <: Number}
     _parameterdomain(p)
-    _wane!(a, from, to, getproperty(a, from) * 3 * p.omega)
+    boost = calculateboosting(a, p)
+    _wane!(a, from, to, getproperty(a, from) * 3 * p.omega * (1 - p.nu) * (1 - boost), nothing)
+end
+
+function _wane!(a::AbstractModelOutputs, from, to, p::HCWSEIRRRParameters{S, T}, t) where {S <: Any, T <: Function}
+    _parameterdomain(p)
+    boost = calculateboosting(a, p)
+    _wane!(a, from, to, getproperty(a, from) * 3 * p.omega * (1 - p.nu(t)) * (1 - boost), nothing)
 end
 
 function _negativecompartmentwarning(a, from) 
@@ -215,4 +283,10 @@ end
 function _nuparameterdomain(p::HCWSEIRRRParameters{S, T}, t) where {S <: Any, T <: Function}
     p.nu(t) < 0 && throw(DomainError(p.nu(t), "nu must be between 0 and 1 (error at time $t)"))
     p.nu(t) > 1 && throw(DomainError(p.nu(t), "nu must be between 0 and 1 (error at time $t)"))
+end
+
+function _numbertoinfect(a, p)
+    lambda = calculatelambda(a, p)
+    infect = a.S * lambda 
+    return infect 
 end
