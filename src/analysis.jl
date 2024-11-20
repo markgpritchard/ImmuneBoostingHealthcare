@@ -72,8 +72,8 @@ function hcwseiirrr(
 end
 
 function hcwseiirrr(  # version where vaccination is given as a parameter
-    u, p::HCWSEIIRRRvp{S, T, U}, t::Integer, λc::Number, patients::Number
-) where {S <: Number, T <: Number, U <: Function}
+    u, p::HCWSEIIRRRvp{T, U, V}, t::Integer, λc::Number, patients::Number
+) where {T <: Number, U <: Number, V <: Function}
     S, E, I, I′1, I′2, I′3, I′4, I′5, I′6, I′7, I′8, I′9, I′10, R1, R2, R3 = u 
 
     λ = 1 - exp(-(λc + p.βp * patients + p.βh * I))
