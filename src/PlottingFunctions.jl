@@ -49,8 +49,12 @@ function plotchains!(
         for (i, k) ∈ enumerate(plotnames_ind) 
             lines!(ax[i], getproperty(data, colnames[k])[inds]; color=COLOURVECTOR[j])
             _plotchainsylabel!(gl, colnames, ylabels, i, k)
+            formataxis!(ax[i]; hidex=(k != last(plotnames_ind)))
         end
     end
+    Label(gl[(1 + length(plotnames_ind)), 1], "sample"; tellwidth=false)
+    colgap!(gl, 1, 5)
+    rowgap!(gl, length(plotnames_ind), 5)
 end
 
 function _plotchainsylabel!(gl, colnames, ::Automatic, i, k)
@@ -449,6 +453,16 @@ function plotcaseswithchangedvaccinationdates!(
             hidex, kwargs...
         )
     end
+    Label(fig[0, 1], "July 2020"; tellwidth=false)
+    Label(fig[0, 2], "August 2020"; tellwidth=false)
+    Label(fig[0, 3], "October 2020"; tellwidth=false)
+    Label(fig[0, 4], "November 2020"; tellwidth=false)
+    Label(fig[1:4, 0], "Effect of changing vaccination period, expected infections per healthcare worker"; rotation=π/2, tellheight=false)
+    Label(fig[1, 5], L"$\psi=0$"; rotation=3π/2, tellheight=false)
+    Label(fig[2, 5], L"$\psi=0.5$"; rotation=3π/2, tellheight=false)
+    Label(fig[3, 5], L"$\psi=2$"; rotation=3π/2, tellheight=false)
+    Label(fig[5, 1:4], L"month, 2020--2021$$"; tellwidth=false)
+
 end
 
 function plotcaseswithchangedvaccinationdates!(

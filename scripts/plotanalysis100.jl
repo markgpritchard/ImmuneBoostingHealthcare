@@ -91,33 +91,3 @@ omega100changevaccinationdatefig = with_theme(theme_latexfonts()) do
     fig
 end
 safesave(plotsdir("omega100changevaccinationdatefig.pdf"), omega100changevaccinationdatefig)
-
-
-omega180changevaccinationdatefig = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 587, 500 ))
-    plotcaseswithchangedvaccinationdates!(
-        fig, 
-        470:831,  # dates
-        [  # observedcasesvector
-            unboostedobserveddiagnosesafterjuly,
-            midboostedobserveddiagnosesafterjuly,
-            boostedobserveddiagnosesafterjuly,
-            dataobserveddiagnosesafterjuly
-        ],
-        [  # modelledcasesvector
-            unboostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses,
-            midboostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses,
-            boostedoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses,
-            dataoutputsperhospital_omega180_diagnosesafterjuly.predicteddiagnoses
-        ],
-        [  # counterfactualsvector
-            unboostedoutputsperhospital_omega180_counterfactuals,
-            midboostedoutputsperhospital_omega180_counterfactuals,
-            boostedoutputsperhospital_omega180_counterfactuals,
-            dataoutputsperhospital_omega180_counterfactuals 
-        ]
-    )
-    fig
-end
-
-safesave(plotsdir("omega180changevaccinationdatefig.pdf"), omega180changevaccinationdatefig)
