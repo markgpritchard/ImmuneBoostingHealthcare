@@ -1,8 +1,6 @@
 
 using DrWatson
-
 @quickactivate :ImmuneBoostingHealthcare
-
 using CategoricalArrays, CSV, DataFrames, Dates
 
 
@@ -13,17 +11,13 @@ using CategoricalArrays, CSV, DataFrames, Dates
 finaldata = let 
     hospitaldata = CSV.read(datadir("exp_raw", "SiteData.csv"), DataFrame)
     rename!(hospitaldata, Dict(Symbol("Trust Code") => "TrustCode"))
+    rename!(hospitaldata, Dict(Symbol("Commissioning Region") => "CommissioningRegion"))
     rename!(hospitaldata, Dict(Symbol("Trust Type") => "TrustType"))
     rename!(hospitaldata, Dict(Symbol("Site Code") => "SiteCode"))
     rename!(hospitaldata, Dict(Symbol("Site Type") => "SiteType"))
     rename!(hospitaldata, Dict(Symbol("Site heated volume (m³)") => "HeatedVolumeString"))
-    rename!(
-        hospitaldata, 
-        Dict(
-            Symbol("Single bedrooms for patients with en-suite facilities (No.)") => 
-                "SingleBedsString"
-        )
-    )
+    _sbsymbol = Symbol("Single bedrooms for patients with en-suite facilities (No.)")
+    rename!(hospitaldata, Dict(_sbsymbol => "SingleBedsString"))
     filter!(:SiteType => x -> x[1] == '1' || x[1] == '2', hospitaldata)
     insertcols!(
         hospitaldata,
@@ -68,7 +62,7 @@ finaldata = let
 
     select!(
         hospitaldata, 
-        :TrustCode, :TrustType, :SiteCode, :SiteType, 
+        :TrustCode, :CommissioningRegion, :TrustType, :SiteCode, :SiteType, 
         :TotalBeds, :HeatedVolume, :SingleBedsEnsuite, :VolumePerBed, :ProportionSingleBeds
     )
 
@@ -87,7 +81,10 @@ finaldata = let
         end
     end
 
-    select!(hospitaldata, :TrustCode, :VolumePerBed, :ProportionSingleBeds)
+    select!(
+        hospitaldata, 
+        :TrustCode, :CommissioningRegion, :VolumePerBed, :ProportionSingleBeds
+    )
     unique!(hospitaldata)
 
     coviddata = CSV.read(datadir("exp_raw", "dataset.csv"), DataFrame)
@@ -134,7 +131,7 @@ finaldata = let
         end
     end
 
-    leftjoin!(coviddata, hospitaldata; on= :Code => :TrustCode )
+    coviddata = innerjoin(coviddata, hospitaldata; on= :Code => :TrustCode )
 
     communitydata = CSV.read(
         datadir("exp_raw", "OxCGRT_compact_subnational_v1.csv"), DataFrame
@@ -175,7 +172,6 @@ finaldata = let
         end
         ( maximum(startdate), maximum(enddate) )
     end
-    # (Date("2020-04-04"), Date("2022-06-08"))
 
     filter!(:Date => x -> Date("2020-04-04") <= x <= Date("2022-06-08"), coviddata)
     insertcols!(coviddata, :t => Dates.value.(coviddata.Date - Date("2020-03-19")))
@@ -195,6 +191,7 @@ finaldata = let
     finaldata = DataFrame(
         :Code => Any[ ],
         :StringCodes => String7[ ],
+        :CommissioningRegion => String[ ],
         :Date => Date[ ],
         :CovidBeds => Int[ ],
         :AllBeds => Int[ ],
@@ -217,22 +214,29 @@ finaldata = let
             :Date => Date("2020-03-19"):Day(1):Date("2022-06-28")
         )
         leftjoin!(ldf, coviddata; on=[ :Code, :StringCodes, :Date ])
-        #println(c)
-        #println(describe(ldf))
         maximum(describe(ldf).nmissing) == 832 && continue  # all missing
-        #println("using $c")
         for i ∈ axes(ldf, 1)
             for v ∈ [ 
-                :CovidBeds, :StaffAbsences, 
-                :CovidPatients, :CovidAbsences, 
-                :PatientsProportion, :StaffProportion, 
-                :weeklycases, :StringencyIndex_Average
+                :CovidBeds, 
+                :StaffAbsences, 
+                :CovidPatients, 
+                :CovidAbsences, 
+                :PatientsProportion, 
+                :StaffProportion, 
+                :weeklycases, 
+                :StringencyIndex_Average,
             ]
                 if ismissing(getproperty(ldf, v)[i])
                     getproperty(ldf, v)[i] = 0 
                 end
             end
-            for v ∈ [ :AllBeds, :StaffTotal, :VolumePerBed, :ProportionSingleBeds ]
+            for v ∈ [ 
+                :CommissioningRegion, 
+                :AllBeds, 
+                :StaffTotal, 
+                :VolumePerBed, 
+                :ProportionSingleBeds, 
+            ]
                 if ismissing(getproperty(ldf, v)[i])
                     getproperty(ldf, v)[i] = maximum(skipmissing(getproperty(ldf, v)))
                 end

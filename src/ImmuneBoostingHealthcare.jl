@@ -16,15 +16,15 @@ export
     AbstractParameters, HCWSEIIRRRp, SEIIRRRSp, WXYYZSEIIRRRSp,
     # no exports from `consts.jl`
     # `simulations.jl`
-    betahh, betahp, betaph, betapp, stochasticseiirrrs, stochasticwxyyzseiirrrs,
     vaccinatestaff,
     # `processdata.jl`
     datetot, insertproportions!, ttodate,
     # `analysis.jl`
     calculatebetah, calculatebetahs, calculatebetap, calculatebetaps, calculatebetas, 
-    calculatelambdac, calculatelambdacs, countdates, counthospitals, datamatrices, fitmodel, 
-    fitmodelperhospital, hcwseiirrr, hcwseiirrr_isolating, hcwseiirrr_isolating!, 
-    hospitalconditionmatrices, loadchainsdf, loadchainsperhospitaldf, predictdiagnoses, 
-    predicttotaldiagnoses, processoutputs, processoutputsperhospital
+    calculatelambdac, calculatelambdacs, countdates, counthospitals, datamatrices, 
+    findobservationssincejuly, fitmodel, fitmodelperhospital, hcwseiirrr, 
+    hcwseiirrr_isolating, hcwseiirrr_isolating!, hospitalconditionmatrices, loadchainsdf, 
+    loadchainsperhospitaldf, predictdiagnoses, predicttotaldiagnoses, processoutputs, 
+    processoutputsdict, processoutputsperhospital, producecounterfactualoutputsdict
 
 end  # module ImmuneBoostingHealthcare

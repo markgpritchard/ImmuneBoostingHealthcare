@@ -20,6 +20,8 @@ else
     n_rounds = 4
 end
 
+filter!(:CommissioningRegion => x -> x == "MIDLANDS COMMISSIONING REGION", finaldata)
+
 nhospitals = counthospitals(finaldata)
 ndates = countdates(finaldata)
 

@@ -1,4 +1,5 @@
 
+
 using DrWatson
 
 @quickactivate :ImmuneBoostingHealthcare
@@ -15,253 +16,493 @@ else
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 end
 
-## Simulate community
+filter!(:CommissioningRegion => x -> x == "MIDLANDS COMMISSIONING REGION", finaldata)
 
-simulations = let 
-    function modeltransmission(t) 
-        if t < 80 
-            return 0.5 * (1 + 0.05 * cos(2π * t / 365))
-        elseif t < 130 
-            return 0.4
-        else 
-            return 0.475 * (1 + 0.05 * cos(2π * t / 365))
-        end
-    end
-    
-    function modelvaccination(t)
-        if 264 <= t < 469  # 8 December 2020 to 1 July 2021
-            return 0.004
-        elseif 531 <= t <= 621  # 1 September to 30 November 2021
-            return 0.004
-        elseif t >= 712  # from 1 March 2021
-            return 0.002
-        else 
-            return 0.0 
-        end
-    end
-    
-    Random.seed!(1729)
-    
-    communityvalues = let 
-        u0_community = [ 55_999_900, 100, 0, 0, 0, 0, 0, 0 ]
-        communityp = SEIIRRRSp(
-            modeltransmission,  # infection rate 
-            0.5,  # rate of leaving exposed compartments 
-            0.2,  # rate of leaving infectious compartment
-            0.0,  # strength of "force of boosting" relative to λ
-            modelvaccination,  # vaccination rate
-            0.01  # rate of immune waning 
-        )
-        stochasticseiirrrs(u0_community, 1:831, communityp)
-    end
-    
-    global const COMMUNITYVALUES = deepcopy(communityvalues)
-    
-    simweeklycases = [
-        (
-            start = max(1, 7 * round(Int, (t - 0.5 ) / 7, RoundDown));
-            lst = min(831, 7 * round(Int, (t - 0.5 ) / 7, RoundUp));
-            sum(@view communityvalues[start:lst, 3:4])
-        )
-        for t ∈ 1:831
-    ]
-    
-    function modelcommunitytransmissiontohcw(t)
-        num = sum(@view COMMUNITYVALUES[round(Int, t, RoundUp), 3:4]) 
-        denom = sum(@view COMMUNITYVALUES[round(Int, t, RoundUp), 1:7])
-        return num * modeltransmission(t) / (1.5 * denom)
-    end
-    
-    ## Simulate hospitals
-    
-    simdata_noboost = DataFrame(
-        :Code => String7[ ],
-        :StringCodes => String7[ ],
-        :Date => Missing[ ],
-        :CovidBeds => Int64[ ],
-        :AllBeds => Int64[ ],
-        :StaffAbsences => Int64[ ],
-        :StaffTotal => Int64[ ],
-        :CovidPatients => Float64[ ],
-        :CovidAbsences => Float64[ ],
-        :PatientsProportion => Float64[ ],
-        :StaffProportion => Float64[ ],
-        :VolumePerBed => Float64[ ],
-        :ProportionSingleBeds => Float64[ ],
-        :weeklycases => Int64[ ],
-        :StringencyIndex_Average => Float64[ ],
-        :t => Float64[ ],
-        :betahh => Float64[ ],
-        :betahp => Float64[ ],
-        :betaph => Float64[ ],
-        :betapp => Float64[ ],
+## Simulate number of isolating healthcare workers in each hospital
+
+### Scenario with no immune boosting
+
+Random.seed!(1729)
+
+unboostedsimulation = let 
+    sim = deepcopy(finaldata)
+    bc = deepcopy(sim)  # betacoefficients
+    select!(bc, :StringCodes, :VolumePerBed, :ProportionSingleBeds) 
+    unique!(bc)
+    insertcols!(
+        bc,
+        :betahh => Vector{Float64}(undef, size(bc, 1)),
+        :betahp => Vector{Float64}(undef, size(bc, 1)),
     )
-    
-    for h ∈ 1:100
-        Random.seed!(h)
-        patienttotal = max(10, sample(finaldata.AllBeds)) 
-        stafftotal = sample(finaldata.StaffTotal)  
-        vpd = sample(finaldata.VolumePerBed) 
-        psb = sample(finaldata.ProportionSingleBeds) 
-        
-        u0 = zeros(Int, 17)
-        u0[1] = patienttotal 
-        u0[7] = stafftotal
-    
-        p = WXYYZSEIIRRRSp(
-            rand(Uniform(0.1, 0.3)) - vpd / 20000,  # rate of infection from healthcare worker to healthcare worker 
-            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from patient to healthcare worker  
-            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from healthcare worker to patient  
-            rand(Uniform(0.05, 0.15)) - psb / 20,  # rate of infection from patient to patient  
-            0.5,  # rate of leaving exposed compartments 
-            0.2,  # rate of leaving infectious compartment
-            0.0,  # strength of "force of boosting" relative to λ
-            vaccinatestaff,  # healthcare worker vaccination rate
-            0.01,  # rate of immune waning 
-            rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
-            rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
-            modelcommunitytransmissiontohcw,  # community force of infection  
-            2/7  # daily proportion diagnosed
-        )
-        
-        @unpack hospitaldiagnoses, hospitalvalues = stochasticwxyyzseiirrrs(
-            u0, 1.0:831.0, p, communityvalues
-        )
-    
-        df = DataFrame(
-            :Code => [ "$h" for _ ∈ 1:831 ],
-            :StringCodes => [ "$h" for _ ∈ 1:831 ],
-            :Date => [ missing for _ ∈ 1:831 ],
-            :CovidBeds => [ sum(@view hospitalvalues[t, 3:5]) for t ∈ 1:831 ],
-            :AllBeds => [ sum(@view hospitalvalues[t, 1:6]) for t ∈ 1:831 ],
-            :StaffAbsences => hospitaldiagnoses,
-            :StaffTotal => [ sum(@view hospitalvalues[t, 7:14]) for t ∈ 1:831 ],
-            :CovidPatients => [ 
-                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
-                for t ∈ 1:831 
-            ],
-            :CovidAbsences => [ 
-                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
-                for t ∈ 1:831 
-            ],
-            :PatientsProportion => [ 
-                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
-                for t ∈ 1:831 
-            ],
-            :StaffProportion => [ 
-                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
-                for t ∈ 1:831 
-            ],
-            :VolumePerBed => [ vpd for _ ∈ 1:831 ],
-            :ProportionSingleBeds => [ psb for _ ∈ 1:831 ],
-            :weeklycases => simweeklycases,
-            :StringencyIndex_Average => finaldata.StringencyIndex_Average[2:832],
-            :t => 1.0:831.0,
-            :betahh => [ betahh(p, t) for t ∈ 1:831 ],
-            :betahp => [ betahp(p, t) for t ∈ 1:831 ],
-            :betaph => [ betaph(p, t) for t ∈ 1:831 ],
-            :betapp => [ betapp(p, t) for t ∈ 1:831 ],
-        )
-        append!(simdata_noboost, df)
-    end
-    
-    simdata_boost = DataFrame(
-        :Code => String7[ ],
-        :StringCodes => String7[ ],
-        :Date => Missing[ ],
-        :CovidBeds => Int64[ ],
-        :AllBeds => Int64[ ],
-        :StaffAbsences => Int64[ ],
-        :StaffTotal => Int64[ ],
-        :CovidPatients => Float64[ ],
-        :CovidAbsences => Float64[ ],
-        :PatientsProportion => Float64[ ],
-        :StaffProportion => Float64[ ],
-        :VolumePerBed => Float64[ ],
-        :ProportionSingleBeds => Float64[ ],
-        :weeklycases => Int64[ ],
-        :StringencyIndex_Average => Float64[ ],
-        :t => Float64[ ],
-        :betahh => Float64[ ],
-        :betahp => Float64[ ],
-        :betaph => Float64[ ],
-        :betapp => Float64[ ],
-    )
-    
-    for h ∈ 1:100
-        Random.seed!(h)
-        patienttotal = max(10, sample(finaldata.AllBeds)) 
-        stafftotal = sample(finaldata.StaffTotal)  
-        vpd = sample(finaldata.VolumePerBed) 
-        psb = sample(finaldata.ProportionSingleBeds) 
-        
-        u0 = zeros(Int, 17)
-        u0[1] = patienttotal 
-        u0[7] = stafftotal
-        
-        p = WXYYZSEIIRRRSp(
-            rand(Uniform(0.1, 0.3)) - vpd / 20000,  # rate of infection from healthcare worker to healthcare worker 
-            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from patient to healthcare worker  
-            rand(Uniform(0.05, 0.15)) - vpd / 40000,  # rate of infection from healthcare worker to patient  
-            rand(Uniform(0.05, 0.15)) - psb / 20,  # rate of infection from patient to patient  
-            0.5,  # rate of leaving exposed compartments 
-            0.2,  # rate of leaving infectious compartment
-            2.0,  # strength of "force of boosting" relative to λ
-            modelvaccination, # healthcare worker vaccination rate
-            0.01,  # rate of immune waning 
-            rand(Uniform(0.2, 0.25)),  # discharge rate of non-infected 
-            rand(Uniform(0.1, 0.17)),  # discharge rate of infected  
-            modelcommunitytransmissiontohcw,  # community force of infection  
-            2/7  # daily proportion diagnosed
-        )
-        
-        @unpack hospitaldiagnoses, hospitalvalues = stochasticwxyyzseiirrrs(
-            u0, 1.0:831.0, p, communityvalues
-        )
-    
-        df = DataFrame(
-            :Code => [ "$h" for _ ∈ 1:831 ],
-            :StringCodes => [ "$h" for _ ∈ 1:831 ],
-            :Date => [ missing for _ ∈ 1:831 ],
-            :CovidBeds => [ sum(@view hospitalvalues[t, 3:5]) for t ∈ 1:831 ],
-            :AllBeds => [ sum(@view hospitalvalues[t, 1:6]) for t ∈ 1:831 ],
-            :StaffAbsences => hospitaldiagnoses,
-            :StaffTotal => [ sum(@view hospitalvalues[t, 7:14]) for t ∈ 1:831 ],
-            :CovidPatients => [
-                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
-                for t ∈ 1:831 
-            ],
-            :CovidAbsences => [ 
-                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
-                for t ∈ 1:831 
-            ],
-            :PatientsProportion => [ 
-                sum(@view hospitalvalues[t, 3:5]) / sum(@view hospitalvalues[t, 1:6]) 
-                for t ∈ 1:831 
-            ],
-            :StaffProportion => [ 
-                hospitaldiagnoses[t] / sum(@view hospitalvalues[t, 7:14]) 
-                for t ∈ 1:831 
-            ],
-            :VolumePerBed => [ vpd for _ ∈ 1:831 ],
-            :ProportionSingleBeds => [ psb for _ ∈ 1:831 ],
-            :weeklycases => simweeklycases,
-            :StringencyIndex_Average => finaldata.StringencyIndex_Average[2:832],
-            :t => 1.0:831.0,
-            :betahh => [ betahh(p, t) for t ∈ 1:831 ],
-            :betahp => [ betahp(p, t) for t ∈ 1:831 ],
-            :betaph => [ betaph(p, t) for t ∈ 1:831 ],
-            :betapp => [ betapp(p, t) for t ∈ 1:831 ],
-        )
-        append!(simdata_boost, df)
+
+    for i ∈ axes(bc, 1)
+        bc.betahh[i] = rand(
+            truncated(
+                Normal(
+                    1 - 0.0004 * bc.VolumePerBed[i] - 0.05 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
+        bc.betahp[i] = rand(
+            truncated(
+                Normal(
+                    1.4 - 0.001 * bc.VolumePerBed[i] - 0.25 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
     end
 
-    Dict( 
-        "boostedsimulation" => simdata_boost, 
-        "unboostedsimulation" => simdata_noboost,
-        "communitycases" => communityvalues, 
-        "simweeklycases" => simweeklycases,
+    select!(bc, :StringCodes, :betahh, :betahp) 
+    leftjoin!(sim, bc; on=:StringCodes)
+    insertcols!(
+        sim, 
+        :λc => [ 
+            (0.23 + 0.0006 * (100 - s)) * c / 56_550_138 
+            for (s, c) ∈ zip(finaldata.StringencyIndex_Average, finaldata.weeklycases) 
+        ],
+        :λp => sim.betahp .* sim.PatientsProportion,
+        :λh => Vector{Float64}(undef, size(sim, 1)),
+        :StaffNewAbsences => Vector{Int}(undef, size(sim, 1)),
+        :StaffSusceptible => Vector{Int}(undef, size(sim, 1)),
+        :UndiagnosedStaffInfected => Vector{Int}(undef, size(sim, 1)),
+        :StaffR1 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR2 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR3 => Vector{Int}(undef, size(sim, 1)),
     )
+
+    for i ∈ axes(sim, 1)
+        if i == 1 || sim.Code[i] != sim.Code[i-1]
+            sim.λh[i] = 0.0 
+            sim.StaffAbsences[i] = 0 
+            sim.CovidAbsences[i] = 0.0 
+            sim.StaffProportion[i] = 0.0 
+            sim.StaffSusceptible[i] = sim.StaffTotal[i]
+            sim.UndiagnosedStaffInfected[i] = 0 
+            sim.StaffR1[i] = 0
+            sim.StaffR2[i] = 0
+            sim.StaffR3[i] = 0
+        else
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
+            i_s = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
+                    0, 
+                    sim.StaffSusceptible[i-1]
+                )
+            )
+            d_i = rand(
+                truncated(
+                    Poisson(0.1 * sim.UndiagnosedStaffInfected[i-1]), 
+                    0,
+                    sim.UndiagnosedStaffInfected[i-1]
+                )
+            )
+            r_i = rand(
+                truncated(
+                    Poisson(0.15 * (sim.UndiagnosedStaffInfected[i-1] - d_i)), 
+                    0, 
+                    sim.UndiagnosedStaffInfected[i-1] - d_i
+                )
+            )
+            v_s = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * (sim.StaffSusceptible[i-1] - i_s)), 
+                    0, 
+                    sim.StaffSusceptible[i-1] - i_s
+                )
+            )
+            b_2 = 0 
+            b_3 = 0
+            v_r2 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR2[i-1]), 
+                    0, 
+                    sim.StaffR2[i-1] - b_2
+                )
+            )
+            v_r3 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR3[i-1]), 
+                    0, 
+                    sim.StaffR3[i-1] - b_3
+                )
+            )
+            w_1 = rand(truncated(Poisson(0.03 * sim.StaffR1[i-1]), 0, sim.StaffR1[i-1]))
+            w_2 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR2[i-1] - v_r2)), 
+                    0, 
+                    sim.StaffR2[i-1] - v_r2 - b_2
+                )
+            ) 
+            w_3 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR3[i-1] - v_r3)), 
+                    0, 
+                    sim.StaffR3[i-1] - v_r3 - b_3
+                )
+            ) 
+
+            sim.StaffNewAbsences[i] = d_i
+            if i <= 10 || sim.Code[i] != sim.Code[i-10]
+                sim.StaffAbsences[i] = sim.StaffAbsences[i-1] + sim.StaffNewAbsences[i]
+                sim.StaffR1[i] = sim.StaffR1[i-1] - w_1 + v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+            else
+                sim.StaffAbsences[i] = sum(@view sim.StaffNewAbsences[i-9:i])
+                sim.StaffR1[i] = (
+                    sim.StaffR1[i-1] - 
+                    w_1 + 
+                    sim.StaffNewAbsences[i-10] + 
+                    v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+                )
+            end
+            sim.CovidAbsences[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffProportion[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffSusceptible[i] = sim.StaffSusceptible[i-1] - v_s - i_s + w_3
+            sim.UndiagnosedStaffInfected[i] = sim.UndiagnosedStaffInfected[i-1] - d_i - r_i + i_s
+            sim.StaffR2[i] = sim.StaffR2[i-1] - w_2 - v_r2 - b_2 + w_1
+            sim.StaffR3[i] = sim.StaffR3[i-1] - w_3 - v_r3 - b_3  + w_2
+        end
+    end
+    Dict("unboostedsimulation" => sim)
 end
 
-safesave(datadir("sims", "simulations.jld2"), simulations)
+safesave(datadir("sims", "unboostedsimulation.jld2"), unboostedsimulation)
+
+
+### Scenario with immune boosting
+
+boostedsimulation = let  # psi = 2 
+    ψ = 2
+    sim = deepcopy(finaldata)
+    bc = deepcopy(sim)  # betacoefficients
+    select!(bc, :StringCodes, :VolumePerBed, :ProportionSingleBeds) 
+    unique!(bc)
+    insertcols!(
+        bc,
+        :betahh => Vector{Float64}(undef, size(bc, 1)),
+        :betahp => Vector{Float64}(undef, size(bc, 1)),
+    )
+
+    for i ∈ axes(bc, 1)
+        bc.betahh[i] = rand(
+            truncated(
+                Normal(
+                    1 - 0.0004 * bc.VolumePerBed[i] - 0.05 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
+        bc.betahp[i] = rand(
+            truncated(
+                Normal(
+                    1.4 - 0.001 * bc.VolumePerBed[i] - 0.25 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
+    end
+
+    select!(bc, :StringCodes, :betahh, :betahp) 
+    leftjoin!(sim, bc; on=:StringCodes)
+    insertcols!(
+        sim, 
+        :λc => [ 
+            (0.23 + 0.0006 * (100 - s)) * c / 56_550_138 
+            for (s, c) ∈ zip(finaldata.StringencyIndex_Average, finaldata.weeklycases) 
+        ],
+        :λp => sim.betahp .* sim.PatientsProportion,
+        :λh => Vector{Float64}(undef, size(sim, 1)),
+        :StaffNewAbsences => Vector{Int}(undef, size(sim, 1)),
+        :StaffSusceptible => Vector{Int}(undef, size(sim, 1)),
+        :UndiagnosedStaffInfected => Vector{Int}(undef, size(sim, 1)),
+        :StaffR1 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR2 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR3 => Vector{Int}(undef, size(sim, 1)),
+    )
+
+    for i ∈ axes(sim, 1)
+        if i == 1 || sim.Code[i] != sim.Code[i-1]
+            sim.λh[i] = 0.0 
+            sim.StaffAbsences[i] = 0 
+            sim.CovidAbsences[i] = 0.0 
+            sim.StaffProportion[i] = 0.0 
+            sim.StaffSusceptible[i] = sim.StaffTotal[i]
+            sim.UndiagnosedStaffInfected[i] = 0 
+            sim.StaffR1[i] = 0
+            sim.StaffR2[i] = 0
+            sim.StaffR3[i] = 0
+        else
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
+            i_s = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
+                    0, 
+                    sim.StaffSusceptible[i-1]
+                )
+            )
+            d_i = rand(
+                truncated(
+                    Poisson(0.1 * sim.UndiagnosedStaffInfected[i-1]), 
+                    0,
+                    sim.UndiagnosedStaffInfected[i-1]
+                )
+            )
+            r_i = rand(
+                truncated(
+                    Poisson(0.15 * (sim.UndiagnosedStaffInfected[i-1] - d_i)), 
+                    0, 
+                    sim.UndiagnosedStaffInfected[i-1] - d_i
+                )
+            )
+            v_s = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * (sim.StaffSusceptible[i-1] - i_s)), 
+                    0, 
+                    sim.StaffSusceptible[i-1] - i_s
+                )
+            )
+            b_2 = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * ψ * sim.StaffR2[i-1]), 
+                    0, 
+                    sim.StaffR2[i-1]
+                )
+            )
+            b_3 = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * ψ * sim.StaffR3[i-1]), 
+                    0, 
+                    sim.StaffR3[i-1]
+                )
+            )
+            v_r2 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR2[i-1]), 
+                    0, 
+                    sim.StaffR2[i-1] - b_2
+                )
+            )
+            v_r3 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR3[i-1]), 
+                    0, 
+                    sim.StaffR3[i-1] - b_3
+                )
+            )
+            w_1 = rand(truncated(Poisson(0.03 * sim.StaffR1[i-1]), 0, sim.StaffR1[i-1]))
+            w_2 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR2[i-1] - v_r2)), 
+                    0, 
+                    sim.StaffR2[i-1] - v_r2 - b_2
+                )
+            ) 
+            w_3 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR3[i-1] - v_r3)), 
+                    0, 
+                    sim.StaffR3[i-1] - v_r3 - b_3
+                )
+            ) 
+
+            sim.StaffNewAbsences[i] = d_i
+            if i <= 10 || sim.Code[i] != sim.Code[i-10]
+                sim.StaffAbsences[i] = sim.StaffAbsences[i-1] + sim.StaffNewAbsences[i]
+                sim.StaffR1[i] = sim.StaffR1[i-1] - w_1 + v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+            else
+                sim.StaffAbsences[i] = sum(@view sim.StaffNewAbsences[i-9:i])
+                sim.StaffR1[i] = (
+                    sim.StaffR1[i-1] - 
+                    w_1 + 
+                    sim.StaffNewAbsences[i-10] + 
+                    v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+                )
+            end
+            sim.CovidAbsences[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffProportion[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffSusceptible[i] = sim.StaffSusceptible[i-1] - v_s - i_s + w_3
+            sim.UndiagnosedStaffInfected[i] = sim.UndiagnosedStaffInfected[i-1] - d_i - r_i + i_s
+            sim.StaffR2[i] = sim.StaffR2[i-1] - w_2 - v_r2 - b_2 + w_1
+            sim.StaffR3[i] = sim.StaffR3[i-1] - w_3 - v_r3 - b_3  + w_2
+        end
+    end
+    Dict("boostedsimulation" => sim)
+end
+
+safesave(datadir("sims", "boostedsimulation.jld2"), boostedsimulation)
+
+
+midboostedsimulation = let  # psi = 2 
+    ψ = 0.5
+    sim = deepcopy(finaldata)
+    bc = deepcopy(sim)  # betacoefficients
+    select!(bc, :StringCodes, :VolumePerBed, :ProportionSingleBeds) 
+    unique!(bc)
+    insertcols!(
+        bc,
+        :betahh => Vector{Float64}(undef, size(bc, 1)),
+        :betahp => Vector{Float64}(undef, size(bc, 1)),
+    )
+
+    for i ∈ axes(bc, 1)
+        bc.betahh[i] = rand(
+            truncated(
+                Normal(
+                    1 - 0.0004 * bc.VolumePerBed[i] - 0.05 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
+        bc.betahp[i] = rand(
+            truncated(
+                Normal(
+                    1.4 - 0.001 * bc.VolumePerBed[i] - 0.25 * bc.ProportionSingleBeds[i], 
+                    1
+                ), 
+                0.0, 
+                10.0
+            )
+        ) / 7
+    end
+
+    select!(bc, :StringCodes, :betahh, :betahp) 
+    leftjoin!(sim, bc; on=:StringCodes)
+    insertcols!(
+        sim, 
+        :λc => [ 
+            (0.23 + 0.0006 * (100 - s)) * c / 56_550_138 
+            for (s, c) ∈ zip(finaldata.StringencyIndex_Average, finaldata.weeklycases) 
+        ],
+        :λp => sim.betahp .* sim.PatientsProportion,
+        :λh => Vector{Float64}(undef, size(sim, 1)),
+        :StaffNewAbsences => Vector{Int}(undef, size(sim, 1)),
+        :StaffSusceptible => Vector{Int}(undef, size(sim, 1)),
+        :UndiagnosedStaffInfected => Vector{Int}(undef, size(sim, 1)),
+        :StaffR1 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR2 => Vector{Int}(undef, size(sim, 1)),
+        :StaffR3 => Vector{Int}(undef, size(sim, 1)),
+    )
+
+    for i ∈ axes(sim, 1)
+        if i == 1 || sim.Code[i] != sim.Code[i-1]
+            sim.λh[i] = 0.0 
+            sim.StaffAbsences[i] = 0 
+            sim.CovidAbsences[i] = 0.0 
+            sim.StaffProportion[i] = 0.0 
+            sim.StaffSusceptible[i] = sim.StaffTotal[i]
+            sim.UndiagnosedStaffInfected[i] = 0 
+            sim.StaffR1[i] = 0
+            sim.StaffR2[i] = 0
+            sim.StaffR3[i] = 0
+        else
+            sim.λh[i] = sim.UndiagnosedStaffInfected[i-1] * sim.betahh[i] / sim.StaffTotal[i]
+            i_s = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * sim.StaffSusceptible[i-1]), 
+                    0, 
+                    sim.StaffSusceptible[i-1]
+                )
+            )
+            d_i = rand(
+                truncated(
+                    Poisson(0.1 * sim.UndiagnosedStaffInfected[i-1]), 
+                    0,
+                    sim.UndiagnosedStaffInfected[i-1]
+                )
+            )
+            r_i = rand(
+                truncated(
+                    Poisson(0.15 * (sim.UndiagnosedStaffInfected[i-1] - d_i)), 
+                    0, 
+                    sim.UndiagnosedStaffInfected[i-1] - d_i
+                )
+            )
+            v_s = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * (sim.StaffSusceptible[i-1] - i_s)), 
+                    0, 
+                    sim.StaffSusceptible[i-1] - i_s
+                )
+            )
+            b_2 = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * ψ * sim.StaffR2[i-1]), 
+                    0, 
+                    sim.StaffR2[i-1]
+                )
+            )
+            b_3 = rand(
+                truncated(
+                    Poisson((sim.λc[i] + sim.λh[i] + sim.λp[i]) * ψ * sim.StaffR3[i-1]), 
+                    0, 
+                    sim.StaffR3[i-1]
+                )
+            )
+            v_r2 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR2[i-1]), 
+                    0, 
+                    sim.StaffR2[i-1] - b_2
+                )
+            )
+            v_r3 = rand(
+                truncated(
+                    Poisson(vaccinatestaff(sim.t[i-1]) * sim.StaffR3[i-1]), 
+                    0, 
+                    sim.StaffR3[i-1] - b_3
+                )
+            )
+            w_1 = rand(truncated(Poisson(0.03 * sim.StaffR1[i-1]), 0, sim.StaffR1[i-1]))
+            w_2 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR2[i-1] - v_r2)), 
+                    0, 
+                    sim.StaffR2[i-1] - v_r2 - b_2
+                )
+            ) 
+            w_3 = rand(
+                truncated(
+                    Poisson(0.03 * (sim.StaffR3[i-1] - v_r3)), 
+                    0, 
+                    sim.StaffR3[i-1] - v_r3 - b_3
+                )
+            ) 
+
+            sim.StaffNewAbsences[i] = d_i
+            if i <= 10 || sim.Code[i] != sim.Code[i-10]
+                sim.StaffAbsences[i] = sim.StaffAbsences[i-1] + sim.StaffNewAbsences[i]
+                sim.StaffR1[i] = sim.StaffR1[i-1] - w_1 + v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+            else
+                sim.StaffAbsences[i] = sum(@view sim.StaffNewAbsences[i-9:i])
+                sim.StaffR1[i] = (
+                    sim.StaffR1[i-1] - 
+                    w_1 + 
+                    sim.StaffNewAbsences[i-10] + 
+                    v_s + v_r2 + v_r3 + r_i + b_2 + b_3
+                )
+            end
+            sim.CovidAbsences[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffProportion[i] = sim.StaffAbsences[i] / sim.StaffTotal[i]
+            sim.StaffSusceptible[i] = sim.StaffSusceptible[i-1] - v_s - i_s + w_3
+            sim.UndiagnosedStaffInfected[i] = sim.UndiagnosedStaffInfected[i-1] - d_i - r_i + i_s
+            sim.StaffR2[i] = sim.StaffR2[i-1] - w_2 - v_r2 - b_2 + w_1
+            sim.StaffR3[i] = sim.StaffR3[i-1] - w_3 - v_r3 - b_3  + w_2
+        end
+    end
+    Dict("midboostedsimulation" => sim)
+end
+
+safesave(datadir("sims", "midboostedsimulation.jld2"), midboostedsimulation)

@@ -8,12 +8,6 @@ else
     finaldata = load(datadir("exp_pro", "finaldata.jld2"))["finaldata"]
 end
 
-if isfile(datadir("sims", "simulations.jld2"))
-    simulations = load(datadir("sims", "simulations.jld2"))
-else 
-    include("generatesimulations.jl")
-end
-
 if length(ARGS) == 3
     id = parse(Int, ARGS[1])
     n_rounds = parse(Int, ARGS[2])
@@ -25,13 +19,38 @@ elseif length(ARGS) == 4
     ω = parse(Float64, ARGS[4])
 else
     id = 1 
-    n_rounds = 5
+    n_rounds = 2
     sim = "unboostedsimulation"
+    ω = 0.01
+end
+
+if isfile(datadir("sims", "unboostedsimulation.jld2"))
+    unboostedsimulation = load(datadir("sims", "unboostedsimulation.jld2"))
+else 
+    include("generatesimulations.jl")
+end
+
+if isfile(datadir("sims", "midboostedsimulation.jld2"))
+    midboostedsimulation = load(datadir("sims", "midboostedsimulation.jld2"))
+else 
+    include("generatesimulations.jl")
+end
+
+if isfile(datadir("sims", "boostedsimulation.jld2"))
+    boostedsimulation = load(datadir("sims", "boostedsimulation.jld2"))
+else 
+    include("generatesimulations.jl")
 end
 
 ## no boosting 
 
-simulation = simulations[sim]
+if sim == "unboostedsimulation"
+    simulation = unboostedsimulation["unboostedsimulation"]
+elseif sim == "boostedsimulation" 
+    simulation = boostedsimulation["boostedsimulation"]
+else 
+    simulation = midboostedsimulation["midboostedsimulation"]
+end
 
 nhospitals = counthospitals(simulation)
 ndates = countdates(simulation; dateid=:t)

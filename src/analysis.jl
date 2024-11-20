@@ -71,6 +71,40 @@ function hcwseiirrr(
     return new_u
 end
 
+function hcwseiirrr(  # version where vaccination is given as a parameter
+    u, p::HCWSEIIRRRvp{T, U, V}, t::Integer, λc::Number, patients::Number
+) where {T <: Number, U <: Number, V <: Function}
+    S, E, I, I′1, I′2, I′3, I′4, I′5, I′6, I′7, I′8, I′9, I′10, R1, R2, R3 = u 
+
+    λ = 1 - exp(-(λc + p.βp * patients + p.βh * I))
+    λψ = p.nu(t) + (1 - exp(-p.ψ * (λc + p.βp * patients + p.βh * I))) * (1 - vaccinated)
+
+    new_u = [
+        S * (1 - λ - vaccinated * (1 - λ)) + R3 * 3 * p.ω * (1 - λψ),  # S 
+        E * (1 - p.η) + λ * S,  # E 
+        I * (1 - p.θ - p.γ * (1 - p.θ)) + p.η * E,  # I 
+        p.θ * I,  # I′1
+        I′1,  # I′2
+        I′2,  # I′3
+        I′3,  # I′4
+        I′4,  # I′5
+        I′5,  # I′6
+        I′6,  # I′7
+        I′7,  # I′8
+        I′8,  # I′9
+        I′9,  # I′10
+        # R1:
+        R1 * (1 - 3 * p.ω * (1 - λψ)) +  # previous R1 that has not waned
+            S * (vaccinated * (1 - λ)) +   # vaccinated from S 
+            p.γ * (1 - p.θ) * I +  # recovered 
+            I′10 +  # ended isolation 
+            λψ * (R2 + R3),  # boosted by exposure or vaccination from R2 and R3 
+        R2 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R1 * 3 * p.ω * (1 - λψ),  # R3
+        R3 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R2 * 3 * p.ω * (1 - λψ),  # R3
+    ]
+    return new_u
+end
+
 function hcwseiirrr_isolating(
     u0, p, tspan::AbstractVector{<:Integer}, λc, patients, vaccinated, j=1
 )
@@ -272,7 +306,7 @@ end
     )
     betaps ~ MvNormal(
         [ α1 + α2 * vpd[j] + α3 * psb[j] for j ∈ jseries ], 
-        hsigma2
+        psigma2
     )
 
 
@@ -678,7 +712,7 @@ function processoutputs(data::DataFrame, chaindf::DataFrame, vaccinated::Vector;
 end
 
 function processoutputsperhospital(
-    data::DataFrame, coviddata::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    data::DataFrame, coviddata::DataFrame, chaindf, vaccinated::Vector, jseries; 
     dateid=:Date, daterange=automatic,
 )
     # `data` can be the covid data or simulated data. `coviddata` must be the covid data
@@ -730,8 +764,168 @@ function processoutputsperhospital(
 end
 
 function processoutputsperhospital(
-    data::DataFrame, chaindf::DataFrame, vaccinated::Vector, jseries; 
+    data::DataFrame, chaindf, vaccinated::Vector, jseries; 
     kwargs...
 )
     return processoutputsperhospital(data, data, chaindf, vaccinated, jseries; kwargs...)
+end
+
+function processoutputsperhospital(
+    data::DataFrame, 
+    coviddata::DataFrame, 
+    filenamestart::AbstractString, 
+    vaccinated::Vector, 
+    jseries; 
+    forcepsi=automatic, psi=automatic, selectchains=automatic, omega=automatic, kwargs...
+)
+    chaindf = loadchainsperhospitaldf(filenamestart; jseries, psi, omega)
+    _processoutputsperhospitalselectchains!(chaindf, selectchains)
+    _processoutputsperhospitalforcepsi!(chaindf, forcepsi)
+    return processoutputsperhospital(data, coviddata, chaindf, vaccinated, jseries; kwargs...)
+end
+
+_processoutputsperhospitalselectchains!(::Any, ::Automatic) = nothing
+
+function _processoutputsperhospitalselectchains!(df, selectchains::Number)
+    _processoutputsperhospitalselectchains!(df, [ selectchains ])
+end
+
+function _processoutputsperhospitalselectchains!(df, selectchains::Vector{<:Number}) 
+    filter!(:chain => x -> x ∈ selectchains, df)
+end
+
+_processoutputsperhospitalforcepsi!(::Any, ::Automatic) = nothing
+
+function _processoutputsperhospitalforcepsi!(df, forcepsi::Number)
+    for i ∈ axes(df, 1) 
+        df.ψ[i] = forcepsi 
+    end
+end
+
+function producecounterfactualoutputsdict(
+    data::DataFrame, 
+    coviddata::DataFrame, 
+    filenamestart::AbstractString, 
+    counterfactualvaccinations::Vector{<:AbstractVector}, 
+    jseries; 
+    kwargs...
+)
+    m2 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[1], jseries; kwargs...
+    )
+    m1 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[2], jseries; kwargs...
+    )
+    p1 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[3], jseries; kwargs...
+    )
+    p2 = processoutputsperhospital(
+        data, coviddata, filenamestart, counterfactualvaccinations[4], jseries; kwargs...
+    )
+    return @dict m2 m1 p1 p2
+end
+
+function producecounterfactualoutputsdict(
+    data::DataFrame, 
+    filenamestart, 
+    counterfactualvaccinations::Vector{<:AbstractVector}, 
+    jseries; 
+    kwargs...
+)
+    return producecounterfactualoutputsdict(
+        data, data, filenamestart, counterfactualvaccinations, jseries; 
+        kwargs...
+    )
+end
+
+function processoutputsdict(
+    observations,
+    coviddata, 
+    fittedvalueslocation::AbstractString,
+    vaccinations, 
+    counterfactualvaccinations::Dict;
+    dates, jseries, omega, selectchains=automatic,
+)
+    observationssincejuly = findobservationssincejuly(observations; dates)
+    df = loadchainsperhospitaldf(fittedvalueslocation; jseries, omega)
+    filtereddf = _filterdfforprocessoutputs(df, selectchains) 
+    modelledoutput = _sendtoprocessoutputsperhospital(
+        observations, coviddata, fittedvalueslocation, vaccinations, jseries; 
+        omega, selectchains,
+    )
+    @unpack m2, m1, p1, p2 = _sendtoproducecounterfactualoutputsdict(
+        observations, 
+        coviddata, 
+        fittedvalueslocation,
+        [ 
+            counterfactualvaccinations["minus2months"], 
+            counterfactualvaccinations["minus1month"], 
+            counterfactualvaccinations["plus1month"], 
+            counterfactualvaccinations["plus2months"] 
+        ], 
+        jseries; 
+        daterange=dates, omega, selectchains,
+    )
+    return @strdict observationssincejuly df filtereddf modelledoutput m2 m1 p1 p2
+end
+
+function processoutputsdict(
+    observations,
+    fittedvalueslocation::AbstractString,
+    vaccinations, 
+    counterfactualvaccinations::Dict;
+    kwargs...
+)
+    return processoutputsdict(
+        observations, 
+        observations, 
+        fittedvalueslocation, 
+        vaccinations, 
+        counterfactualvaccinations;
+        kwargs...
+    )
+end
+
+function findobservationssincejuly(
+    observations::DataFrame; 
+    dates, 
+    idcode=:StringCodes, newabsencecode=:StaffNewAbsences, totalstaffcode=:StaffTotal, t=:t
+)
+    return [
+        (
+            d = filter([ idcode, t ] => (x, y) -> x == c && y ∈ dates, observations);
+            sum(getproperty(d, newabsencecode)) ./ getproperty(d, totalstaffcode)[1]
+        )
+        for c ∈ unique(getproperty(observations, idcode))
+    ]
+end
+
+function findobservationssincejuly(observations::Matrix; dates)
+    return [ sum(@view observations[dates, i]) for i ∈ axes(observations, 2) ]
+end
+
+function _filterdfforprocessoutputs(df, selectchains) 
+    filtereddf = deepcopy(df)
+    _filterdfforprocessoutputs!(filtereddf, selectchains) 
+    return filtereddf
+end
+
+_filterdfforprocessoutputs!(df, selectchains) = filter!(:chain => x -> x ∈ selectchains, df)
+_filterdfforprocessoutputs!(::Any, ::Automatic) = nothing
+
+function _sendtoprocessoutputsperhospital(obs::DataFrame, coviddata, args...; kwargs...)
+    return processoutputsperhospital(obs, coviddata, args...; dateid=:t, kwargs...)
+end
+
+function _sendtoprocessoutputsperhospital(obs::Matrix, coviddata, args...; kwargs...)  
+    # if `observations` is a Matrix then function being called about data, not a simulation
+    return processoutputsperhospital(coviddata, args...; dateid=:t, kwargs...)
+end
+
+function _sendtoproducecounterfactualoutputsdict(obs::DataFrame, coviddf, args...; kwargs...)
+    return producecounterfactualoutputsdict(obs, coviddf, args...; dateid=:t, kwargs...)
+end
+
+function _sendtoproducecounterfactualoutputsdict(obs::Matrix, coviddf, args...; kwargs...)
+    return producecounterfactualoutputsdict(coviddf, args...; dateid=:t, kwargs...)
 end
