@@ -122,6 +122,107 @@ function modhcwseiirrr(  # version where vaccination is given as a parameter
     return new_u
 end
 
+function calculatetotalstaff(data)
+    return [  
+        (
+            d = filter(:StringCodes => x -> x == h, data);
+            d.StaffTotal[1]
+        )
+        for h ∈ unique(data.StringCodes)
+    ]
+end
+
+function runsimulatedoutputs(
+    df;
+    nhospitals, ntimes, patients, stringency, vaccinated,
+    nsamples=size(df, 1), CrI=( 0.05, 0.95 ),
+)
+    lambda = zeros(ntimes, nhospitals, nsamples)
+    forceofboosting = zeros(ntimes, nhospitals, nsamples)
+    susceptible = zeros(ntimes, nhospitals, nsamples)
+    predictedinfections = zeros(ntimes, nhospitals, nsamples)
+    medianlambda = zeros(ntimes, nhospitals)
+    lcilambda = zeros(ntimes, nhospitals)
+    ucilambda = zeros(ntimes, nhospitals)
+    medianforceofboosting = zeros(ntimes, nhospitals)
+    lciforceofboosting = zeros(ntimes, nhospitals)
+    uciforceofboosting = zeros(ntimes, nhospitals)
+    mediansusceptible = zeros(ntimes, nhospitals)
+    lcisusceptible = zeros(ntimes, nhospitals)
+    ucisusceptible = zeros(ntimes, nhospitals)
+    medianpredictedinfections = zeros(ntimes, nhospitals)
+    lcipredictedinfections = zeros(ntimes, nhospitals)
+    ucipredictedinfections = zeros(ntimes, nhospitals)
+
+    totalstaff = calculatetotalstaff(df)
+
+    for k ∈ 1:nsamples
+        λc = [ 
+            max(zero(Float64), df.α7[k] + df.α8[k] * (100 - s)) 
+            for s ∈ stringency 
+        ] .* community
+        for j ∈ 1:nhospitals
+            u = zeros(18)
+            u[1] = totalstaff[j]
+            p = HCWSEIIRRRp(
+                getproperty(df, "betahs[$j]")[k],  # βh 
+                getproperty(df, "betaps[$j]")[k],  # βp 
+                0.5,  # η 
+                0.2,  # γ 
+                df.ψ[k],  
+                df.ω[k],  
+                df.θ[k]
+            )
+            for t ∈ 1:ntimes
+                u = modhcwseiirrr(u, p, t, λc[t], patients[t, j], vaccinated[t])
+                lambda[t, j, k] = u[17]
+                forceofboosting[t, j, k] = u[18]
+                susceptible[t, j, k] = u[1]
+                predictedinfections[t, j, k] = sum(@view u[4:13])
+            end
+        end
+    end
+
+    for t ∈ 1:ntimes, j ∈ 1:nhospitals
+        li, mi, ui = quantile(predictedinfections[t, j, :], [ 0.05, 0.5, 0.95 ])
+        lcipredictedinfections[t, j] = li
+        medianpredictedinfections[t, j] = mi
+        ucipredictedinfections[t, j] = ui
+        ll, ml, ul = quantile(lambda[t, j, :], [ 0.05, 0.5, 0.95 ])
+        medianlambda[t, j] = ml
+        lcilambda[t, j] = ll
+        ucilambda[t, j] = ul
+        ls, ms, us = quantile(susceptible[t, j, :], [ 0.05, 0.5, 0.95 ])
+        mediansusceptible[t, j] = ms
+        lcisusceptible[t, j] = ls
+        ucisusceptible[t, j] = us
+        lb, mb, ub = quantile(forceofboosting[t, j, :], [ 0.05, 0.5, 0.95 ])
+        medianforceofboosting[t, j] = mb
+        lciforceofboosting[t, j] = lb
+        uciforceofboosting[t, j] = ub
+    end
+
+    return Dict(
+        "lambda" => lambda,
+        "forceofboosting" => forceofboosting,
+        "susceptible" => susceptible,
+        "predictedinfections" => predictedinfections, 
+        "medianlambda" => medianlambda,
+        "lcilambda" => lcilambda,
+        "ucilambda" => ucilambda,
+        "medianforceofboosting" => medianforceofboosting,
+        "lciforceofboosting" => lciforceofboosting,
+        "uciforceofboosting" => uciforceofboosting,
+        "mediansusceptible" => mediansusceptible,
+        "lcisusceptible" => lcisusceptible,
+        "ucisusceptible" => ucisusceptible,
+        "medianpredictedinfections" => medianpredictedinfections,
+        "lcipredictedinfections" => lcipredictedinfections,
+        "ucipredictedinfections" => ucipredictedinfections,
+    )
+end
+
+
 totalstaff = [  
     (
         d = filter(:StringCodes => x -> x == h, finaldata);
@@ -142,7 +243,7 @@ for k ∈ axes(lambda, 3)
     ] .* community
     for j ∈ axes(lambda, 2)
         u = zeros(18)
-        u[1] = staff[j]
+        u[1] = totalstaff[j]
         p = HCWSEIIRRRp(
             getproperty(df, "betahs[$j]")[k],  # βh 
             getproperty(df, "betaps[$j]")[k],  # βp 
@@ -162,22 +263,90 @@ for k ∈ axes(lambda, 3)
     end
 end
 
-
-
-
-
-mediandiagnoses = zeros(832, 23)
-lcidiagnoses = zeros(832, 23) 
-ucidiagnoses = zeros(832, 23)
-
-bandcolour = ( COLOURVECTOR[1], 0.33)
+medianlambda = zeros(832, 23)
+lcilambda = zeros(832, 23)
+ucilambda = zeros(832, 23)
+medianforceofboosting = zeros(832, 23)
+lciforceofboosting = zeros(832, 23)
+uciforceofboosting = zeros(832, 23)
+mediansusceptible = zeros(832, 23)
+lcisusceptible = zeros(832, 23)
+ucisusceptible = zeros(832, 23)
+medianpredictedinfections = zeros(832, 23)
+lcipredictedinfections = zeros(832, 23)
+ucipredictedinfections = zeros(832, 23)
 
 for t ∈ axes(mediandiagnoses, 1), j ∈ axes(mediandiagnoses, 2)
-    l, m, u = quantile(dataoutputs100["modelledoutput"]["predictdiagnoses"][t, j, :], [ 0.05, 0.5, 0.95 ])
-    lcidiagnoses[t, j] = l
-    mediandiagnoses[t, j] = m
-    ucidiagnoses[t, j] = u
+    li, mi, ui = quantile(predictedinfections[t, j, :], [ 0.05, 0.5, 0.95 ])
+    lcipredictedinfections[t, j] = li
+    medianpredictedinfections[t, j] = mi
+    ucipredictedinfections[t, j] = ui
+    ll, ml, ul = quantile(lambda[t, j, :], [ 0.05, 0.5, 0.95 ])
+    medianlambda[t, j] = ml
+    lcilambda[t, j] = ll
+    ucilambda[t, j] = ul
+    ls, ms, us = quantile(susceptible[t, j, :], [ 0.05, 0.5, 0.95 ])
+    mediansusceptible[t, j] = ms
+    lcisusceptible[t, j] = ls
+    ucisusceptible[t, j] = us
+    lb, mb, ub = quantile(forceofboosting[t, j, :], [ 0.05, 0.5, 0.95 ])
+    medianforceofboosting[t, j] = mb
+    lciforceofboosting[t, j] = lb
+    uciforceofboosting[t, j] = ub
 end
+
+outputsdict = Dict(
+    "lambda" => lambda,
+    "forceofboosting" => forceofboosting,
+    "susceptible" => susceptible,
+    "predictedinfections" => predictedinfections, 
+    "medianlambda" => medianlambda,
+    "lcilambda" => lcilambda,
+    "ucilambda" => ucilambda,
+    "medianforceofboosting" => medianforceofboosting,
+    "lciforceofboosting" => lciforceofboosting,
+    "uciforceofboosting" => uciforceofboosting,
+    "mediansusceptible" => mediansusceptible,
+    "lcisusceptible" => lcisusceptible,
+    "ucisusceptible" => ucisusceptible,
+    "medianpredictedinfections" => medianpredictedinfections,
+    "lcipredictedinfections" => lcipredictedinfections,
+    "ucipredictedinfections" => ucipredictedinfections,
+)
+
+bandcolour = ( COLOURVECTOR[1], 0.5)
+
+
+
+fig = Figure(; size=( 500, 700 ))
+
+axs = [ Axis(fig[i, j]) for i ∈ 1:6, j ∈ 1:4 ]
+
+for (i, hosp) ∈ enumerate(unique(finaldata.StringCodes))
+    d = filter(:StringCodes => x -> x == hosp, finaldata)
+    lines!(
+        axs[i], 
+        d.t, 
+        medianlambda[:, i]; 
+        color=COLOURVECTOR[1]
+    )
+    #=band!(
+        axs[i], 
+        d.t, 
+        lcilambda[:, i], 
+        ucilambda[:, i]; 
+        color=bandcolour
+    )=#
+end
+
+linkaxes!(axs...)
+
+fig 
+
+
+stop
+
+
 
 fig = Figure(; size=( 500, 700 ))
 
@@ -186,40 +355,29 @@ axs = [ Axis(fig[i, j]) for i ∈ 1:6, j ∈ 1:4 ]
 for (i, hosp) ∈ enumerate(unique(finaldata.StringCodes))
     d = filter(:StringCodes => x -> x == hosp, finaldata)
     scatter!(axs[i], d.t, d.StaffProportion; color=:black, markersize=2)
-    lines!(axs[i], d.t, mediandiagnoses[:, i]; color=COLOURVECTOR[1])
-    band!(axs[i], d.t, lcidiagnoses[:, i], ucidiagnoses[:, i]; color=bandcolour)
+    inds1 = findall(x -> x < 0.2, medianpredictedinfections[:, i] ./ totalstaff[i])
+    inds2 = findall(x -> x < 0.2, ucipredictedinfections[:, i] ./ totalstaff[i])
+    lines!(
+        axs[i], 
+        d.t[inds1], 
+        [ v for v ∈ medianpredictedinfections[:, i] ./ totalstaff[i] ][inds1]; 
+        color=COLOURVECTOR[1]
+    )
+    band!(
+        axs[i], 
+        d.t[inds2], 
+        [ v for v ∈ lcipredictedinfections[:, i] ./ totalstaff[i] ][inds2], 
+        [ v for v ∈ ucipredictedinfections[:, i] ./ totalstaff[i] ][inds2]; 
+        color=bandcolour
+    )
 end
 
 linkaxes!(axs...)
 
-fig
+fig 
 
-lambda = zeros(832, 23, 16_384)
-medianlambda = zeros(832, 23)
-lcilambda = zeros(832, 23) 
-ucilambda = zeros(832, 23)
 
-df = dataoutputs100["df"]
-for k ∈ axes(lambda, 3)
-    λc = [ 
-        max(zero(Float64), df.α7[k] + df.α8[k] * (100 - s)) 
-        for s ∈ stringency 
-    ] .* community
-    for j ∈ axes(medianlambda, 2)
 
-    end
-end 
-
-for t ∈ axes(medianlambda, 1), j ∈ axes(medianlambda, 2)
-
-    #end
-
-end
-
-λc = [ 
-            max(zero(Float64), df.α7[i] + df.α8[i] * (100 - s)) 
-            for s ∈ stringency 
-        ] .* community
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Changes in numbers of cases with changes in vaccination times

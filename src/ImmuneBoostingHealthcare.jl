@@ -25,6 +25,7 @@ export
     findobservationssincejuly, fitmodel, fitmodelperhospital, hcwseiirrr, 
     hcwseiirrr_isolating, hcwseiirrr_isolating!, hospitalconditionmatrices, loadchainsdf, 
     loadchainsperhospitaldf, predictdiagnoses, predicttotaldiagnoses, processoutputs, 
-    processoutputsdict, processoutputsperhospital, producecounterfactualoutputsdict
+    processoutputsdict, processoutputsperhospital, producecounterfactualoutputsdict,
+    runhcwseiirrr
 
 end  # module ImmuneBoostingHealthcare

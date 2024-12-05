@@ -71,6 +71,18 @@ function hcwseiirrr(
     return new_u
 end
 
+function runhcwseiirrr(u0, p, tspan, λc, patients, vaccinated::AbstractVector)
+    output = zeros(length(tspan), 16)
+    output[1, :] = u0 
+    u = deepcopy(u0) 
+    for t ∈ tspan 
+        t == 0 && continue 
+        u = hcwseiirrr(u, p, t, λc[t], patients[t], vaccinated[t])
+        output[t, :] = u 
+    end
+    return output
+end
+
 function hcwseiirrr_isolating(
     u0, p, tspan::AbstractVector{<:Integer}, λc, patients, vaccinated, j=1
 )
@@ -94,7 +106,7 @@ end
 
 function hcwseiirrr_isolating!(
     isolating, ::Automatic, p::HCWSEIIRRRp, tspan::AbstractVector{<:Integer}, 
-    λc::AbstractVector, patients::AbstractVector, vaccinated::AbstractVector, j
+    λc::AbstractVector, patients::AbstractVector, vaccinated::AbstractVector, ::Any
 )
     u = zeros(16)
     u[1] = 1.0

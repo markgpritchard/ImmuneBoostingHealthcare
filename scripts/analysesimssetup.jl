@@ -61,5 +61,18 @@ ndates = countdates(simulation; dateid=:t)
 stringency = simulation.StringencyIndex_Average[1:ndates]
 community = simulation.weeklycases[1:ndates] ./ 56_000_000
 
+for t ∈ 1:832 
+    if t < 200 
+        if community[t] > 0.0005 
+            community[t] = community[t-1]
+        end
+    else
+        if community[t] > 0.005 
+            community[t] = community[t-1]
+        end
+    end
+end
+
+
 # numbers of vaccinated healthcare workers, assumed equal in all hospitals 
 vaccinated = [ vaccinatestaff(t) for t ∈ 1:ndates ] 
