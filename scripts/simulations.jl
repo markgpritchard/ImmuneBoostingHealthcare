@@ -31,7 +31,7 @@ end
 patients = zeros(832)
 u0 = zeros(16)
 u0[1] = 1
-
+#=
 simfigures = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 500, 500 ))
     axs = [ 
@@ -130,7 +130,7 @@ simfigures = with_theme(theme_latexfonts()) do
 
     fig
 end
-
+=#
 simdifffigures = with_theme(theme_latexfonts()) do
     fig2 = Figure(; size=( 500, 400 ))
     axs = [ 
@@ -196,13 +196,14 @@ simdifffigures = with_theme(theme_latexfonts()) do
         )
     end
     
-    text!(axs[1, 1], 298, 500; text="2 months earlier", align=( :left, :center ), fontsize=10)    
-    text!(axs[2, 1], 298, 500; text="1 month earlier", align=( :left, :center ), fontsize=10)    
-    text!(axs[3, 1], 298, 500; text="1 month later", align=( :left, :center ), fontsize=10)    
-    text!(axs[4, 1], 298, 650; text="2 months later", align=( :left, :center ), fontsize=10)    
-    
+    text!(haxs[1, 1], 325, 500; text="2 months earlier", align=( :center, :center ), fontsize=10)    
+    text!(haxs[2, 1], 325, 500; text="1 month earlier", align=( :center, :center ), fontsize=10)    
+    text!(haxs[3, 1], 325, 650; text="1 month later", align=( :center, :center ), fontsize=10)    
+    text!(haxs[3, 1], 325, -650; text="2 months later", align=( :center, :center ), fontsize=10)   
+
     linkaxes!(axs...)
     linkxaxes!(axs..., laxs...)
+    linkxaxes!(haxs..., laxs[1])
     linkyaxes!(axs..., haxs...)
     for ax ∈ laxs 
         for x ∈ [ 288, 469, 653, 834 ]
@@ -213,6 +214,8 @@ simdifffigures = with_theme(theme_latexfonts()) do
     for ax ∈ haxs 
         hlines!(ax, 1; color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,)
         formataxis!(ax; hidex=true, hidexticks=true, hidey=true, hideyticks=true, hidespines=( :l, :r, :t, :b ))
+        setvalue!(ax, 288, 0)
+        setvalue!(ax, 834, 0)
     end
     Label(fig2[0, 1], L"$\psi=0$"; fontsize=11.84, halign=:left, tellwidth=false)
     Label(fig2[0, 2], L"$\psi=1$"; fontsize=11.84, halign=:left, tellwidth=false)
@@ -256,7 +259,7 @@ end
 patients = zeros(832)
 u0 = zeros(16)
 u0[1] = 1
-
+#=
 simfigures = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 500, 500 ))
     axs = [ 
@@ -355,7 +358,7 @@ simfigures = with_theme(theme_latexfonts()) do
 
     fig
 end
-
+=#
 simdifffigures = with_theme(theme_latexfonts()) do
     fig2 = Figure(; size=( 500, 400 ))
     axs = [ 
