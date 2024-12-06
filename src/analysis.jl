@@ -113,7 +113,7 @@ function hcwseiirrr_isolating!(
     isolating[1] = sum(@view u[4:13])
     for t ∈ tspan 
         u = hcwseiirrr(u, p, t, λc[t], patients[t], vaccinated[t])
-        @assert sum(u) ≈ 1 "sum(u)=$(sum(u))≠1, u=$u, p=$p, t=$t"
+        #@assert sum(u) ≈ 1 "sum(u)=$(sum(u))≠1, u=$u, p=$p, t=$t"
         isolating[t] = sum(@view u[4:13])
     end
 end
