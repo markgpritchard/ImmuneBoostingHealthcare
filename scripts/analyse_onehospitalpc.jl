@@ -208,14 +208,3 @@ for id ∈ 1:4
         end
     end
 end
-
-fittedvalues_onehospitaldf = let 
-    fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_1_round_12.jld2")) 
-    df = DataFrame(fv["chain"])
-    for i ∈ 2:4 
-        fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_$(i)_round_12.jld2")) 
-        append!(df, DataFrame(fv["chain"]))
-    end 
-    df 
-end
-
