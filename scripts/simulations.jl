@@ -729,10 +729,10 @@ end
 
 
 fittedvalues_onehospitaldf = let 
-    fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_1_round_12.jld2")) 
+    fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_1_round_12n.jld2")) 
     df = DataFrame(fv["chain"])
     for i ∈ 2:4 
-        fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_$(i)_round_12.jld2")) 
+        fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_$(i)_round_12n.jld2")) 
         tdf = DataFrame(fv["chain"]) 
         for j ∈ axes(tdf, 1)
             tdf.chain[j] = i 
@@ -809,6 +809,7 @@ fittedvalues_dict = let
     modelleds = zeros(size(fittedvalues_onehospitaldf, 1), 832)
     modelledei = zeros(size(fittedvalues_onehospitaldf, 1), 832)
     modelledr = zeros(size(fittedvalues_onehospitaldf, 1), 832)
+    modelledn = zeros(size(fittedvalues_onehospitaldf, 1), 832)
     lambdacs = zeros(size(fittedvalues_onehospitaldf, 1), 832)
     lambdahs = zeros(size(fittedvalues_onehospitaldf, 1), 832)
     lambdaps = zeros(size(fittedvalues_onehospitaldf, 1), 832)
@@ -832,6 +833,7 @@ fittedvalues_dict = let
         s = output[:, 1]
         ei = [ sum(@view output[t, 2:13]) for t ∈ 1:832 ]
         r = [ sum(@view output[t, 14:16]) for t ∈ 1:832 ]
+        n = [ sum(@view output[t, 1:16]) for t ∈ 1:832 ]
         diagnosedprev = [ sum(@view output[t, 4:13]) for t ∈ 1:832 ]
         λh = [ fittedvalues_onehospitaldf.βh[i] * output[t, 3] for t ∈ 1:832 ]
         λp = fittedvalues_onehospitaldf.βp[i] .* patients
@@ -839,6 +841,7 @@ fittedvalues_dict = let
         modelleds[i, :] .= s
         modelledei[i, :] .= ei
         modelledr[i, :] .= r
+        modelledn[i, :] .= n
         lambdacs[i, :] .= λc
         lambdahs[i, :] .= λh
         lambdaps[i, :] .= λp
@@ -846,7 +849,7 @@ fittedvalues_dict = let
         diagnosedprevelence[i, :] .= diagnosedprev
     end 
 
-    @dict modelleds modelledei modelledr lambdacs lambdahs lambdaps totallambdas diagnosedprevelence
+    @dict modelleds modelledei modelledr modelledn lambdacs lambdahs lambdaps totallambdas diagnosedprevelence
 end
 
 fittedvaluesfig = with_theme(theme_latexfonts()) do 
@@ -1136,11 +1139,36 @@ prevalencefig = with_theme(theme_latexfonts()) do
             axs[6];
             hidex=true, hidexticks=true, hidey=true, hideyticks=true, hidespines=( :l, :r, :t, :b )
         ) 
+
+        leg = fig[-1, 1:5] = Legend(fig, axs[1, 1]; orientation=:horizontal)
+        formataxis!(leg; horizontal=true)
+
+        linkxaxes!(axs..., laxs...)
         
     end
 
     colsize!(fig.layout, 6, Auto(0.1))
 
+    Label(fig[1:2, 0], "Compartment sizes"; fontsize=11.84, rotation=π/2, tellheight=false)
+    Label(fig[3, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+
+    colgap!(fig.layout, 1, 5)
+    for r ∈ [ 1, 2, 4 ] rowgap!(fig.layout, r, 5) end
         
     fig
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+#############################################################
+

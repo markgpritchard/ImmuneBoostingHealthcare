@@ -48,8 +48,8 @@ function hcwseiirrr(
     new_u = [
         S * (1 - λ - vaccinated * (1 - λ)) + R3 * 3 * p.ω * (1 - λψ),  # S 
         E * (1 - p.η) + λ * S,  # E 
-        I * (1 - p.θ - p.γ * (1 - p.θ)) + p.η * E,  # I 
-        p.θ * I,  # I′1
+        I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ))) - (1 - exp(-p.γ)) * (I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ)))) + p.η * E,  # I 
+        I * (1 - exp(-p.γ * p.θ / (1 - p.θ))),  # I′1
         I′1,  # I′2
         I′2,  # I′3
         I′3,  # I′4
@@ -62,7 +62,7 @@ function hcwseiirrr(
         # R1:
         R1 * (1 - 3 * p.ω * (1 - λψ)) +  # previous R1 that has not waned
             S * (vaccinated * (1 - λ)) +   # vaccinated from S 
-            p.γ * (1 - p.θ) * I +  # recovered 
+            (1 - exp(-p.γ)) * (I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ)))) +  # recovered 
             I′10 +  # ended isolation 
             λψ * (R2 + R3),  # boosted by exposure or vaccination from R2 and R3 
         R2 * (1 - 3 * p.ω * (1 - λψ) - λψ) + R1 * 3 * p.ω * (1 - λψ),  # R3

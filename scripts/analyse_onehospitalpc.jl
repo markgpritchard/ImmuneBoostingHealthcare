@@ -175,8 +175,8 @@ new_pt = fitted_pt_omega001
 
 for id ∈ 1:4
     for i ∈ 0:12
-        filename = "fittedvalues_onehospital_omega_001_id_$(id)_round_$(i).jld2"
-        nextfilename = "fittedvalues_onehospital_omega_001_id_$(id)_round_$(i + 1).jld2"
+        filename = "fittedvalues_onehospital_omega_001_id_$(id)_round_$(i)nn.jld2"
+        nextfilename = "fittedvalues_onehospital_omega_001_id_$(id)_round_$(i + 1)nn.jld2"
         isfile(datadir("sims", nextfilename)) && continue
         if isfile(datadir("sims", filename))
             global new_pt = load(datadir("sims", filename))["pt"]
