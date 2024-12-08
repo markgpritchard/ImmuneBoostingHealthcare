@@ -48,7 +48,9 @@ function hcwseiirrr(
     new_u = [
         S * (1 - λ - vaccinated * (1 - λ)) + R3 * 3 * p.ω * (1 - λψ),  # S 
         E * (1 - p.η) + λ * S,  # E 
-        I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ))) - (1 - exp(-p.γ)) * (I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ)))) + p.η * E,  # I 
+        #I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ))) - (1 - exp(-p.γ)) * (I - I * (1 - exp(-p.γ * p.θ / (1 - p.θ)))) + p.η * E,  # I 
+        #I * exp(-p.γ * (1 + p.θ / (1 - p.θ))) + p.η * E,  # I 
+        I * exp(-p.γ / (1 - p.θ)) + p.η * E,  # I 
         I * (1 - exp(-p.γ * p.θ / (1 - p.θ))),  # I′1
         I′1,  # I′2
         I′2,  # I′3

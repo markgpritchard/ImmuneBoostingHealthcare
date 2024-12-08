@@ -66,12 +66,13 @@ function coslambda(t, m=0.015, n=0.005)
 end
 
 simfigurescoslambda = with_theme(theme_latexfonts()) do
-    λc = [ coslambda((t - 308) / 365) for t ∈ 1:832]
+    #λc = [ coslambda((t - 308) / 365) for t ∈ 1:832]
+    λc = [ coslambda((t - 288) / 365) for t ∈ 1:832]
     patients = zeros(832)
     u0 = zeros(16)
     u0[1] = 1
 
-    fig = Figure(; size=( 500, 275 ))
+    fig = Figure(; size=( 500, 300 ))
     axs = [ 
         Axis(
             fig[1, j]; 
@@ -153,7 +154,8 @@ end
 
 
 simdifffigurescoslambda = with_theme(theme_latexfonts()) do
-    λc = [ coslambda((t - 308) / 365) for t ∈ 1:832]
+    #λc = [ coslambda((t - 308) / 365) for t ∈ 1:832]
+    λc = [ coslambda((t - 319) / 365) for t ∈ 1:832]
     patients = zeros(832)
     u0 = zeros(16)
     u0[1] = 1
@@ -363,7 +365,7 @@ simfigures = with_theme(theme_latexfonts()) do
     linkaxes!(axs...)
     linkxaxes!(axs..., laxs...)
     for ax ∈ laxs 
-        for x ∈ [ 288, 469, 653, 834 ]
+        for x ∈ [ 104, 288, 469, 653, 834 ]
             vlines!(ax, x; color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,)
         end
         formataxis!(ax; hidex=true, hidexticks=true, hidey=true, hideyticks=true, hidespines=( :l, :r, :t, :b ))
@@ -372,20 +374,24 @@ simfigures = with_theme(theme_latexfonts()) do
     Label(fig[3, 1:5], "Date"; fontsize=11.84, tellwidth=false)
     Label(fig[1:2, 0], "Prevalence"; fontsize=11.84, rotation=π/2, tellheight=false)
 
-    for r ∈ [ 1, 3 ] rowgap!(fig.layout, r, 5) end
     colgap!(fig.layout, 1, 5)
 
     colsize!(fig.layout, 6, Auto(0.1))
 
     leg = fig[-1, 1:5] = Legend(fig, axs[1, 1]; orientation=:horizontal)
+    for r ∈ [ 1, 2, 4 ] rowgap!(fig.layout, r, 5) end
 
 
     formataxis!(leg; horizontal=true)
     
-    
+    labelplots!([ "A", "B" ], fig; rows=[ 1, 2 ], padding=( 0, 5, 0, 0 ))
 
     fig
 end
+
+safesave(plotsdir("simfigures.pdf"), simfigures)
+
+
 
 simdifffigures = with_theme(theme_latexfonts()) do
     fig2 = Figure(; size=( 500, 400 ))
