@@ -86,24 +86,25 @@
 		ipr3/"$i^{\prime}_{3j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{3j}$"} ->[black!50,"$1$"'] 		
 		ipvdots/"$\vdots$" [xshift=24mm,yshift=-13.5mm] {"$\vdots$"} ->[black!50,"$1$"'] 
 		ipr10/"$i^{\prime}_{10j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{10j}$"};
-		s/"$s_j$" [supnoninfectious,xshift=38mm] {"$s_j$"}->[dashed,red!50!black!50,"$\lambda_{\mathrm{h}}$"']
+		s/"$s_j$" [supnoninfectious,xshift=38mm] {"$s_j$"}->[dashed,red!50!black!50,"$\lambda$"']
 		e/"$e_j$" [supnoninfectious,xshift=38mm] {"$e_j$"} ->[black!50,"$\rho$"']
 		i/"$i_j$" [supinfectious,xshift=38mm] {"$i_j$"} ->[black!50,"$\gamma$"']		
 		r1/"$r_{1j}$" [supnoninfectious,xshift=38mm] {"$r_{1j}$"} ->[black!50,"$3\omega$"']
 		r2/"$r_{2j}$" [supnoninfectious,xshift=38mm] {"$r_{2j}$"} ->[black!50,"$3\omega$"']
 		r3/"$r_{3j}$" [supnoninfectious,xshift=38mm] {"$r_{3j}$"};
-		ip/"$i_{\mathrm{p}j}$" [supinfectious,xshift=84mm,yshift=-35mm] {"$i_{\mathrm{p}j}$"};
+		ip/"$i_{\mathrm{p}j}$" [supinfectious,xshift=79mm,yshift=-35mm] {"$i_{\mathrm{p}j}$"};
 	};
 	[font=\sffamily\bfseries,align=center,text width=3cm] {Healthcare workers};
 	\draw [->,rounded corners,shorten <= -2.5pt] ($(s.south east)$) -- ($ (s.south east) + (5mm,-5mm) $) to [edge label=$\nu$,color=black!50] ($ (r1.north east) + (5mm,5mm) $) -- ($ (r1.north east) $);
-	\draw [->,rounded corners,shorten <= -2.5pt] ($(i.west)$) -- ($ (i.west) + (-2.5mm,omm) $) to [edge label'=$\theta$,color=black!50] ($ (r1.south east) + (2.5mm,-2.5mm) $) -- ($ (r1.south east) $);
+	\draw [->,rounded corners,shorten <= -2.5pt] ($(i.south west)$) -- ($ (i.south west) + (-5mm,-5mm) $) -- ($ (ipr1.north east) + (5mm,5mm) $) to [edge label'=$\frac{\gamma\,\theta}{1-\theta}$,color=black!50] ($ (ipr1.north east) $);
+	\draw [->,rounded corners,shorten <= -2.5pt] ($(ipr10.south east)$) to [edge label'=$1$,color=black!50] ($ (ipr10.south east) + (5mm,-5mm) $) -- ($ (r1.200) + (-5mm,-1mm) $) -- ($ (r1.200) $);
 	\draw [->,rounded corners,shorten <= -2.5pt] ($(r2.north east)$) -- ($ (r2.north east) + (2.5mm,2.5mm) $) to [edge label'=$\nu$,color=black!50] ($ (r1.south east) + (2.5mm,-2.5mm) $) -- ($ (r1.south east) $);
-	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] ($(r2.east)$) to [edge node={node [sloped,below] {$\psi\,\lambda_{\mathrm{c}}$}}] ($ (r2.east) + (7.5mm,2.5mm) $) -- ($ (r1.330) + (7.5mm,-2.5mm) $) -- ($ (r1.330) $);
+	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] ($(r2.east)$) to [edge node={node [sloped,below] {$\psi\,\lambda$}}] ($ (r2.east) + (7.5mm,2.5mm) $) -- ($ (r1.330) + (7.5mm,-2.5mm) $) -- ($ (r1.330) $);
 	\draw [->,rounded corners,shorten <= -2.5pt,shorten >= 1pt] ($(r3.north east)$) -- ($ (r3.north east) + (12.5mm,7.5mm) $) to [edge label'=$\nu$,color=black!50] ($ (r1.345) + (12.5mm,-2.5mm) $) -- ($ (r1.345) $);
-	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] ($(r3.25)$) -- ($ (r3.25) + (17.5mm,5mm) $) -- ($ (r1.east) + (17.5mm,-2.5mm) $) to [edge node={node [sloped,above] {$\psi\,\lambda_{\mathrm{c}}$}}] ($ (r1.east) $);
+	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] ($(r3.25)$) -- ($ (r3.25) + (17.5mm,5mm) $) -- ($ (r1.east) + (17.5mm,-2.5mm) $) to [edge node={node [sloped,above] {$\psi\,\lambda$}}] ($ (r1.east) $);
 	\draw [->,rounded corners,shorten >= 1pt] ($(r3.east)$) -- ($ (r3.east) + (22.5mm,0mm) $) to [edge label'=$3\omega$,color=black!50] ($ (s.east) + (22.5mm,0mm) $) -- ($ (s.east) $);
 	\begin{scope}[on background layer={color=blue!15}]
-		\fill (2,1.5) rectangle (9.5,-12.3);
+		\fill (4.5,0.5) rectangle (11,-10.5);
 	\end{scope}
 \end{tikzpicture}
 

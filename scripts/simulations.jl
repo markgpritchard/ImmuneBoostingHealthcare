@@ -729,10 +729,10 @@ end
 
 
 fittedvalues_onehospitaldf = let 
-    fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_1_round_12n.jld2")) 
+    fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_1_round_12nn.jld2")) 
     df = DataFrame(fv["chain"])
     for i ∈ 2:4 
-        fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_$(i)_round_12n.jld2")) 
+        fv = load(datadir("sims", "fittedvalues_onehospital_omega_001_id_$(i)_round_12nn.jld2")) 
         tdf = DataFrame(fv["chain"]) 
         for j ∈ axes(tdf, 1)
             tdf.chain[j] = i 
