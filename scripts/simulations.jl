@@ -1001,6 +1001,7 @@ fittedcompartmentfigures = with_theme(theme_latexfonts()) do
                 axs[i], 0; 
                 color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
             )
+            @info "Model $mod, final distribution $(dm[832]) ($(dl[832]), $(du[832]))"
         end
 
         for x ∈ [ 104, 288, 469, 653, 834 ]
