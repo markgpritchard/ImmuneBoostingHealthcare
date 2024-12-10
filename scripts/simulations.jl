@@ -11,11 +11,6 @@ include("analysesimssetup.jl")
 
 alternativevaccinations = load(datadir("sims", "alternativevaccinations.jld2"))
 
-include("loaddata.jl")
-include("analysesimssetup.jl")
-
-alternativevaccinations = load(datadir("sims", "alternativevaccinations.jld2"))
-
 datarbk = filter(:StringCodes => x -> x == "RBK", finaldata)
 insertcols!(datarbk, :Community => community)
 
@@ -260,89 +255,96 @@ fitmodels = let
     d
 end
 
-fitmodelsmultihospital = let
-    d = Dict{String, Matrix{Float64}}()
-    λc = 0.02 .* community
-    for 
-        (vac, lbl) ∈ zip(
-            [
-                vaccinated,
-                alternativevaccinations["minus2months"],
-                alternativevaccinations["minus1month"],
-                alternativevaccinations["plus1month"],
-                alternativevaccinations["plus2months"],
-            ], 
-            [ "sept", "minus2", "minus1", "plus1", "plus2" ]
-        ),
-        hosp ∈ 1:23  
-
-        #modelleds = zeros(size(dataoutputs100["df"], 1), 832)
-        #modelledei = zeros(size(dataoutputs100["df"], 1), 832)
-        modelledi0 = zeros(size(dataoutputs100["df"], 1), 832)
-        #modelledr = zeros(size(dataoutputs100["df"], 1), 832)
-       # modelledn = zeros(size(dataoutputs100["df"], 1), 832)
-        #lambdacs = zeros(size(dataoutputs100["df"], 1), 832)
-        #lambdahs = zeros(size(dataoutputs100["df"], 1), 832)
-        #lambdaps = zeros(size(dataoutputs100["df"], 1), 832)
-        #totallambdas = zeros(size(dataoutputs100["df"], 1), 832)
-        #diagnosedprevalence = zeros(size(dataoutputs100["df"], 1), 832)
-        @info "hosp=$hosp"
-        for i ∈ axes(dataoutputs100["df"], 1)
-            λc = [ 
-                max(
-                    0.0, 
-                    (
-                        dataoutputs100["df"].α7[i] + 
-                        dataoutputs100["df"].α8[i] * (100 - s)
-                    )
-                ) 
-                for s ∈ stringency 
-            ] .* community
-            p = HCWSEIIRRRp(
-                getproperty(dataoutputs100["df"], "betahs[$(hosp)]")[i],  # βh 
-                getproperty(dataoutputs100["df"], "betaps[$(hosp)]")[i],  # βp 
-                0.5,  # η 
-                0.2,  # γ 
-                dataoutputs100["df"].ψ[i] ,  # ψ
-                0.01,  
-                dataoutputs100["df"].θ[i]
-            )
-            u0 = zeros(16)
-            u0[1] = 1.0
-            output = runhcwseiirrr(u0, p, 1:1:832, λc, patients, vac)
-            #s = output[:, 1]
-            iv = output[:, 3]
-            #ei = [ sum(@view output[t, 2:13]) for t ∈ 1:832 ]
-            #r = [ sum(@view output[t, 14:16]) for t ∈ 1:832 ]
-            #n = [ sum(@view output[t, 1:16]) for t ∈ 1:832 ]
-            #diagnosedprev = [ sum(@view output[t, 4:13]) for t ∈ 1:832 ]
-            #λh = [ fittedvalues_onehospitaldf.βh[i] * output[t, 3] for t ∈ 1:832 ]
-            #λp = fittedvalues_onehospitaldf.βp[i] .* patients
+if isfile(datadir("sims", "fitmodelsmultihospital.jld2"))
+    fitmodelsmultihospital = load(datadir("sims", "fitmodelsmultihospital.jld2"))
+else 
+    fitmodelsmultihospital = let
+        d = Dict{String, Matrix{Float64}}()
+        λc = 0.02 .* community
+        for 
+            (vac, lbl) ∈ zip(
+                [
+                    vaccinated,
+                    alternativevaccinations["minus2months"],
+                    alternativevaccinations["minus1month"],
+                    alternativevaccinations["plus1month"],
+                    alternativevaccinations["plus2months"],
+                ], 
+                [ "sept", "minus2", "minus1", "plus1", "plus2" ]
+            ),
+            hosp ∈ 1:23  
     
-            #modelleds[i, :] .= s
-            #modelledei[i, :] .= ei
-            modelledi0[i, :] .= iv
-            #modelledr[i, :] .= r
-            #modelledn[i, :] .= n
-            #lambdacs[i, :] .= λc
-            #lambdahs[i, :] .= λh
-            #lambdaps[i, :] .= λp
-            #totallambdas[i, :] .= λc .+ λh .+ λp
-            #diagnosedprevalence[i, :] .= diagnosedprev
-            if i / 1000 == round(Int, i / 1000) print("$i ") end
-        end 
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelleds" => modelleds)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelledei" => modelledei)
-        push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelledi0" => modelledi0)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelledr" => modelledr)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelledn" => modelledn)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_lambdacs" => lambdacs)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_lambdahs" => lambdahs)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_lambdaps" => lambdaps)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_totallambdas" => totallambdas)
-        #push!(d, "model_hosp=$(hosp)_vac=$(lbl)_diagnosedprevalence" => diagnosedprevalence)
+            modelledi0 = zeros(size(dataoutputs100["df"], 1), 832)
+            @info "hosp=$hosp"
+            for i ∈ axes(dataoutputs100["df"], 1)
+                λc = [ 
+                    max(
+                        0.0, 
+                        (
+                            dataoutputs100["df"].α7[i] + 
+                            dataoutputs100["df"].α8[i] * (100 - s)
+                        )
+                    ) 
+                    for s ∈ stringency 
+                ] .* community
+                p = HCWSEIIRRRp(
+                    getproperty(dataoutputs100["df"], "betahs[$(hosp)]")[i],  # βh 
+                    getproperty(dataoutputs100["df"], "betaps[$(hosp)]")[i],  # βp 
+                    0.5,  # η 
+                    0.2,  # γ 
+                    dataoutputs100["df"].ψ[i] ,  # ψ
+                    0.01,  
+                    dataoutputs100["df"].θ[i]
+                )
+                u0 = zeros(16)
+                u0[1] = 1.0
+                output = runhcwseiirrr(u0, p, 1:1:832, λc, patients, vac)
+                iv = output[:, 3]
+                modelledi0[i, :] .= iv
+                if i / 1000 == round(Int, i / 1000) print("$i ") end
+            end 
+            push!(d, "model_hosp=$(hosp)_vac=$(lbl)_modelledi0" => modelledi0)
+        end
+        d
     end
-    d
+    safesave(datadir("sims", "fitmodelsmultihospital.jld2"), fitmodelsmultihospital)
+
+    fitmodelsmultihospital = load(datadir("sims", "fitmodelsmultihospital.jld2"))
+end
+
+if isfile(datadir("sims", "multipehospitaldifs.jld2"))
+    multipehospitaldifs = load(datadir("sims", "multipehospitaldifs.jld2"))
+else 
+    multipehospitaldifs = let 
+        d = Dict{String, Matrix{Float64}}()
+    
+        for mod ∈ [ "minus2", "minus1", "plus1", "plus2" ]
+            medians = zeros(23, 364)
+            lowerinterval = zeros(23, 364)
+            upperinterval = zeros(23, 364)
+            for k ∈ 1:23
+                dif = (
+                    fitmodelsmultihospital["model_hosp=$(k)_vac=$(mod)_modelledi0"][:, 469:832] - 
+                    fitmodelsmultihospital["model_hosp=$(k)_vac=sept_modelledi0"][:, 469:832]
+                )
+                for j ∈ axes(dif, 1)
+                    for t ∈ 2:364
+                        dif[j, t] += dif[j, t-1]
+                    end
+                end
+                lowerinterval[k, :] .= [ quantile(dif[:, t], 0.05) for t ∈ 1:364 ]
+                medians[k, :] .= [ quantile(dif[:, t], 0.5) for t ∈ 1:364 ]
+                upperinterval[k, :] .= [ quantile(dif[:, t], 0.95) for t ∈ 1:364 ]
+            end
+            push!(d, "lower_vac=$(mod))" => lowerinterval)
+            push!(d, "median_vac=$(mod))" => medians)
+            push!(d, "upper_vac=$(mod))" => upperinterval)
+        end
+        d
+    end
+    safesave(datadir("sims", "multipehospitaldifs.jld2"), multipehospitaldifs)
+
+    multipehospitaldifs = load(datadir("sims", "multipehospitaldifs.jld2"))
 end
 
 
@@ -1165,22 +1167,9 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
 
         for (i, mod) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ])
             for k ∈ 1:23
-                dif = (
-                    fitmodelsmultihospital["model_hosp=$(k)_vac=$(mod)_modelledi0"] - 
-                    fitmodelsmultihospital["model_hosp=$(k)_vac=sept_modelledi0"]
-                )
-                for j ∈ axes(dif, 1)
-                    for t ∈ 2:832
-                        dif[j, t] += dif[j, t-1]
-                    end
-                end
-                #dl = [ quantile(dif[:, t], 0.05) for t ∈ 1:832 ]
-                dm = [ quantile(dif[:, t], 0.5) for t ∈ 1:832 ]
-                #du = [ quantile(dif[:, t], 0.95) for t ∈ 1:832 ]
                 lines!(
-                    axs[i], 469:832, dm[469:832]; 
-                    #color=COLOURVECTOR[1], linewidth=1, label="Susceptible",
-                    color=dataoutputs100["observationssincejuly"][i],
+                    axs[i], 469:832, multipehospitaldifs["median_vac=$(mod))"][k, :]; 
+                    color=dataoutputs100["observationssincejuly"][k],
                     colorrange=extrema(dataoutputs100["observationssincejuly"]),
                     linewidth=1, 
                 )
@@ -1222,11 +1211,80 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
             ga[2:8, 0], "Difference in cumulative incidence"; 
             fontsize=11.84, rotation=π/2, tellheight=false
         )
-        colgap!(ga, 1, 5)
+        cb = Colorbar(ga[2:8, 2]; limits=extrema(dataoutputs100["observationssincejuly"]))
+        formataxis!(cb)
+        Label(
+            ga[2:8, 3], "Absences per healthcare worker"; 
+            fontsize=11.84, rotation=3π/2, tellheight=false
+        )
+        for c ∈ 1:3 colgap!(ga, c, 5) end
         for r ∈ 1:8 rowgap!(ga, r, 5) end
     end
 
-    colsize!(fig.layout, 2, Auto(0.04))
+    let
+        axs = [ 
+            Axis(
+                gb[(2 * i), 1]
+            ) 
+            for i ∈ 1:4 
+        ]
+
+        for k ∈ 1:23
+            for (i, mod) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ])
+               #= v = [ 
+                    sum(
+                        fitmodelsmultihospital["model_hosp=$(k)_vac=$(mod)_modelledi0"][it, 469:832]
+                    ) 
+                    for it ∈ axes(
+                        fitmodelsmultihospital["model_hosp=$(k)_vac=$(mod)_modelledi0"], 1
+                    ) 
+                ]
+                l, m, u = quantile(v, [ 0.05, 0.5, 0.95 ])=#
+                scatter!(
+                    axs[i], 
+                    dataoutputs100["observationssincejuly"][k], 
+                    multipehospitaldifs["median_vac=$(mod))"][k, 364]; 
+                    color=:black, markersize=3,
+                )
+                rangebars!(
+                    axs[i], 
+                    [ dataoutputs100["observationssincejuly"][k] ], 
+                    [ multipehospitaldifs["lower_vac=$(mod))"][k, 364] ], 
+                    [ multipehospitaldifs["upper_vac=$(mod))"][k, 364] ]; 
+                    color=:black, linewidth=1,
+                )
+            end
+
+        end
+
+        for i ∈ 1:4 
+            hlines!(
+                axs[i], 0; 
+                color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+            )
+            formataxis!(
+                axs[i];
+                hidex=(i != 4), hidexticks=(i != 4),
+                trimspines=true, hidespines=( :r, :t )
+            )
+            if i != 4 hidespines!(axs[i], :b) end
+        end
+
+        Label(gb[1, 1], "2 months earlier"; fontsize=11.84, halign=:left, tellwidth=false)
+        Label(gb[3, 1], "1 month earlier"; fontsize=11.84, halign=:left, tellwidth=false)
+        Label(gb[5, 1], "1 month later"; fontsize=11.84, halign=:left, tellwidth=false)
+        Label(gb[7, 1], "2 months later"; fontsize=11.84, halign=:left, tellwidth=false)
+        Label(gb[9, 1], "Absences per healthcare worker"; fontsize=11.84, tellwidth=false)
+        Label(
+            gb[2:8, 0], "Difference in cumulative incidence"; 
+            fontsize=11.84, rotation=π/2, tellheight=false
+        )
+        colgap!(gb, 1, 5) 
+        for r ∈ 1:8 rowgap!(gb, r, 5) end
+    end
+
+
+    colsize!(fig.layout, 2, Auto(0.6))
 
     fig
 end
