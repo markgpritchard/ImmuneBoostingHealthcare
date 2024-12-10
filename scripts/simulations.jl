@@ -362,6 +362,7 @@ compartmentfigures = with_theme(theme_latexfonts()) do
                 [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
             ), 
             xticklabelrotation=-π/4,
+            yticks=WilkinsonTicks(2),
         ) 
         for i ∈ 1:9, j ∈ 1:6
     ]
@@ -511,8 +512,8 @@ safesave(plotsdir("compartmentfigures.pdf"), compartmentfigures)
 # Effect of changing vaccination date 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-simdifffigurescoslambda = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 350 ))
+simdifffigure = with_theme(theme_latexfonts()) do
+    fig = Figure(; size=( 500, 700 ))
     axs = [ 
         Axis(
             fig[(2 * i), j]; 
@@ -522,10 +523,10 @@ simdifffigurescoslambda = with_theme(theme_latexfonts()) do
             ), 
             xticklabelrotation=-π/4,
         ) 
-        for i ∈ 1:4, j ∈ 1:6
+        for i ∈ 1:12, j ∈ 1:6
     ]
-    laxs = [ Axis(fig[2:8, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
-    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:4 ]
+    laxs = [ Axis(fig[2:24, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
+    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:12 ]
 
     for 
         (i, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
@@ -543,98 +544,17 @@ simdifffigurescoslambda = with_theme(theme_latexfonts()) do
 
         formataxis!(
             axs[i, j];
-            hidex=(i != 4), hidexticks=(i != 4), hidey=(j != 1), hideyticks=(j != 1),
-            trimspines=true, hidespines=( :r, :t )
+            hidex=true, hidexticks=true, hidey=(j != 1), hideyticks=(j != 1),
+            trimspines=true, hidespines=( :r, :t, :b )
         )
-        if i != 4 hidespines!(axs[i, j], :b) end
         if j != 1 hidespines!(axs[i, j], :l) end
     end
 
-    for i ∈ 1:4 
-        hlines!(
-            haxs[i], 0; 
-            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
-        )
-    end
-
-    linkxaxes!(axs..., laxs...)
-    for i ∈ 1:4
-        linkyaxes!(axs[i, :]..., haxs[i])
-    end
-
-    for ax ∈ laxs 
-        #for x ∈ [ 104, 288, 469, 653, 834 ]
-        for x ∈ [ 469, 653, 834 ]
-            vlines!(
-                ax, x; 
-                color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
-            )
-        end
-        formataxis!(
-            ax; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-    end
-    
-    Label(fig[9, 1:5], "Date"; fontsize=11.84, tellwidth=false)
-    Label(
-        fig[2:8, 0], "Difference in cumulative incidence"; 
-        fontsize=11.84, rotation=π/2, tellheight=false
-    )
-
-    colsize!(fig.layout, 6, Auto(0.1))
-    for i ∈ 1:4 
-        formataxis!(
-            haxs[i]; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-        formataxis!(
-            axs[i, 6]; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-    end
-
-    Label(fig[0, 1], L"$\psi=0$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 2], L"$\psi=1$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 3], L"$\psi=2$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 4], L"$\psi=5$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 5], L"$\psi=10$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[1, 1], "2 months earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[3, 1], "1 month earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[5, 1], "1 month later"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[7, 1], "2 months later"; fontsize=11.84, halign=:left, tellwidth=false)
-    
-    colgap!(fig.layout, 1, 5)
-    for r ∈ 1:9 rowgap!(fig.layout, r, 5) end
-
-    fig
-end
-
-safesave(plotsdir("simdifffigurescoslambda.pdf"), simdifffigurescoslambda)
-
-simdifffiguresbetah = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 350 ))
-    axs = [ 
-        Axis(
-            fig[(2 * i), j]; 
-            xticks=( 
-                [ 104, 288, 469, 653, 834 ], 
-                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
-            ), 
-            xticklabelrotation=-π/4,
-        ) 
-        for i ∈ 1:4, j ∈ 1:6
-    ]
-    laxs = [ Axis(fig[2:8, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
-    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:4 ]
-
     for 
-        (i, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
+        (z, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
         (j, ψ) ∈ enumerate([ 0, 1, 2, 5, 10 ])
 
+        i = z + 4
         lines!(
             axs[i, j], 
             469:832, 
@@ -647,98 +567,17 @@ simdifffiguresbetah = with_theme(theme_latexfonts()) do
 
         formataxis!(
             axs[i, j];
-            hidex=(i != 4), hidexticks=(i != 4), hidey=(j != 1), hideyticks=(j != 1),
-            trimspines=true, hidespines=( :r, :t )
+            hidex=true, hidexticks=true, hidey=(j != 1), hideyticks=(j != 1),
+            trimspines=true, hidespines=( :r, :t, :b )
         )
-        if i != 4 hidespines!(axs[i, j], :b) end
         if j != 1 hidespines!(axs[i, j], :l) end
     end
 
-    for i ∈ 1:4 
-        hlines!(
-            haxs[i], 0; 
-            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
-        )
-    end
-
-    linkxaxes!(axs..., laxs...)
-    for i ∈ 1:4
-        linkyaxes!(axs[i, :]..., haxs[i])
-    end
-
-    for ax ∈ laxs 
-        #for x ∈ [ 104, 288, 469, 653, 834 ]
-        for x ∈ [ 469, 653, 834 ]
-            vlines!(
-                ax, x; 
-                color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
-            )
-        end
-        formataxis!(
-            ax; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-    end
-    
-    Label(fig[9, 1:5], "Date"; fontsize=11.84, tellwidth=false)
-    Label(
-        fig[2:8, 0], "Difference in cumulative incidence"; 
-        fontsize=11.84, rotation=π/2, tellheight=false
-    )
-
-    colsize!(fig.layout, 6, Auto(0.1))
-    for i ∈ 1:4 
-        formataxis!(
-            haxs[i]; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-        formataxis!(
-            axs[i, 6]; 
-            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
-            hidespines=( :l, :r, :t, :b )
-        )
-    end
-
-    Label(fig[0, 1], L"$\psi=0$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 2], L"$\psi=1$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 3], L"$\psi=2$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 4], L"$\psi=5$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[0, 5], L"$\psi=10$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[1, 1], "2 months earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[3, 1], "1 month earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[5, 1], "1 month later"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[7, 1], "2 months later"; fontsize=11.84, halign=:left, tellwidth=false)
-    
-    colgap!(fig.layout, 1, 5)
-    for r ∈ 1:9 rowgap!(fig.layout, r, 5) end
-
-    fig
-end
-
-safesave(plotsdir("simdifffiguresbetah.pdf"), simdifffiguresbetah)
-
-simdifffigureshosp = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 350 ))
-    axs = [ 
-        Axis(
-            fig[(2 * i), j]; 
-            xticks=( 
-                [ 104, 288, 469, 653, 834 ], 
-                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
-            ), 
-            xticklabelrotation=-π/4,
-        ) 
-        for i ∈ 1:4, j ∈ 1:6
-    ]
-    laxs = [ Axis(fig[2:8, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
-    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:4 ]
-
     for 
-        (i, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
+        (z, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
         (j, ψ) ∈ enumerate([ 0, 1, 2, 5, 10 ])
 
+        i = z + 8
         lines!(
             axs[i, j], 
             469:832, 
@@ -751,14 +590,14 @@ simdifffigureshosp = with_theme(theme_latexfonts()) do
 
         formataxis!(
             axs[i, j];
-            hidex=(i != 4), hidexticks=(i != 4), hidey=(j != 1), hideyticks=(j != 1),
+            hidex=(z != 4), hidexticks=(z != 4), hidey=(j != 1), hideyticks=(j != 1),
             trimspines=true, hidespines=( :r, :t )
         )
-        if i != 4 hidespines!(axs[i, j], :b) end
+        if z != 4 hidespines!(axs[i, j], :b) end
         if j != 1 hidespines!(axs[i, j], :l) end
     end
 
-    for i ∈ 1:4 
+    for i ∈ 1:12 
         hlines!(
             haxs[i], 0; 
             color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
@@ -766,7 +605,7 @@ simdifffigureshosp = with_theme(theme_latexfonts()) do
     end
 
     linkxaxes!(axs..., laxs...)
-    for i ∈ 1:4
+    for i ∈ 1:12
         linkyaxes!(axs[i, :]..., haxs[i])
     end
 
@@ -785,14 +624,14 @@ simdifffigureshosp = with_theme(theme_latexfonts()) do
         )
     end
     
-    Label(fig[9, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+    Label(fig[25, 1:5], "Date"; fontsize=11.84, tellwidth=false)
     Label(
-        fig[2:8, 0], "Difference in cumulative incidence"; 
+        fig[2:24, 0], "Difference in cumulative incidence"; 
         fontsize=11.84, rotation=π/2, tellheight=false
     )
 
     colsize!(fig.layout, 6, Auto(0.1))
-    for i ∈ 1:4 
+    for i ∈ 1:12 
         formataxis!(
             haxs[i]; 
             hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
@@ -810,18 +649,34 @@ simdifffigureshosp = with_theme(theme_latexfonts()) do
     Label(fig[0, 3], L"$\psi=2$"; fontsize=11.84, halign=:left, tellwidth=false)
     Label(fig[0, 4], L"$\psi=5$"; fontsize=11.84, halign=:left, tellwidth=false)
     Label(fig[0, 5], L"$\psi=10$"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[1, 1], "2 months earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[3, 1], "1 month earlier"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[5, 1], "1 month later"; fontsize=11.84, halign=:left, tellwidth=false)
-    Label(fig[7, 1], "2 months later"; fontsize=11.84, halign=:left, tellwidth=false)
-    
+    for i ∈ 1:3
+        Label(
+            fig[(8 * i - 7), 1], "2 months earlier"; 
+            fontsize=11.84, halign=:left, tellwidth=false
+        )
+        Label(
+            fig[(8 * i - 5), 1], "1 month earlier"; 
+            fontsize=11.84, halign=:left, tellwidth=false
+        )
+        Label(
+            fig[(8 * i - 3), 1], "1 month later"; 
+            fontsize=11.84, halign=:left, tellwidth=false
+        )
+        Label(
+            fig[(8 * i - 1), 1], "2 months later"; 
+            fontsize=11.84, halign=:left, tellwidth=false
+        )
+    end
+
     colgap!(fig.layout, 1, 5)
-    for r ∈ 1:9 rowgap!(fig.layout, r, 5) end
+    for r ∈ [ 1:8; 10:16; 18:25 ] rowgap!(fig.layout, r, 5) end
+
+    labelplots!([ "A", "B", "C" ], fig; rows=[ 1, 9, 17 ])
 
     fig
 end
 
-safesave(plotsdir("simdifffigureshosp.pdf"), simdifffigureshosp)
+safesave(plotsdir("simdifffigure.pdf"), simdifffigure)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1274,7 +1129,7 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
         Label(gb[3, 1], "1 month earlier"; fontsize=11.84, halign=:left, tellwidth=false)
         Label(gb[5, 1], "1 month later"; fontsize=11.84, halign=:left, tellwidth=false)
         Label(gb[7, 1], "2 months later"; fontsize=11.84, halign=:left, tellwidth=false)
-        Label(gb[9, 1], "Absences per healthcare worker"; fontsize=11.84, tellwidth=false)
+        Label(gb[9, 1], "Absences per\nhealthcare worker"; fontsize=11.84, tellwidth=false)
         Label(
             gb[2:8, 0], "Difference in cumulative incidence"; 
             fontsize=11.84, rotation=π/2, tellheight=false
