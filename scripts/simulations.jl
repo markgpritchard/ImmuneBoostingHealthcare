@@ -111,47 +111,6 @@ cosmodels = let
     d
 end
 
-#betahλc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
-#betahλc = [
-#    t < 10 || 459 <= t < 469 ? 
-#        0.01 :
-#        0.0
-#    for t ∈ 1:832 
-#] 
-betahλc = 0.02 .* community
-
-betahmodels = let
-    d = Dict{String, Matrix{Float64}}()
-    λc = betahλc
-    for ψ ∈ [ 0, 1, 2, 5, 10 ]
-        for (vac, lbl) ∈ zip(
-            [
-                vaccinated,
-                alternativevaccinations["minus2months"],
-                alternativevaccinations["minus1month"],
-                alternativevaccinations["plus1month"],
-                alternativevaccinations["plus2months"],
-            ], 
-            [ "sept", "minus2", "minus1", "plus1", "plus2" ]
-        )  
-            p = HCWSEIIRRRp(
-                0.5,  # βh 
-                0.0,  # βp 
-                0.5,  # η 
-                0.2,  # γ 
-                ψ,  # ψ
-                0.01,  
-                0.5
-            )
-            u0 = zeros(16)
-            u0[1] = 1.0
-            output = runhcwseiirrr(u0, p, 1:1:832, λc, zeros(832), vac)
-            push!(d, "model_ψ=$(ψ)_vac=$(lbl)" => output)
-        end
-    end
-    d
-end
-
 hospmodels = let
     d = Dict{String, Matrix{Float64}}()
     λc = 0.02 .* community
@@ -362,7 +321,7 @@ end
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 compartmentfigures = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 700 ))
+    fig = Figure(; size=( 500, 500 ))
     axs = [ 
         Axis(
             fig[i, j]; 
@@ -373,12 +332,12 @@ compartmentfigures = with_theme(theme_latexfonts()) do
             xticklabelrotation=-π/4,
             yticks=WilkinsonTicks(2),
         ) 
-        for i ∈ 1:9, j ∈ 1:6
+        for i ∈ 1:6, j ∈ 1:6
     ]
-    laxs = [ Axis(fig[1:9, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
+    laxs = [ Axis(fig[1:6, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
 
     i = 0
-    for (m, model) ∈ enumerate([ cosmodels, betahmodels, hospmodels ])
+    for (m, model) ∈ enumerate([ cosmodels, hospmodels ])
         i += 1
         for (j, ψ) ∈ enumerate([ 0, 1, 2, 5, 10 ])
             lines!(
@@ -416,20 +375,9 @@ compartmentfigures = with_theme(theme_latexfonts()) do
                 setvalue!(axs[i, j], 104, 0.5)
             end
         else
-            if m == 2 
-                #λc = [ t < 350 ? 0.08 : 0.002 for t ∈ 1:832 ] .* community
-                #λp = [ t < 180 ? 0.075 : 0.0075 for t ∈ 1:832 ] .* patients
-                #λc = [ t < 30 ? 0.015 : 0.0 for t ∈ 1:832 ] 
-                #λc = [ t < 10 ? coslambda((t - 319) / 365) : 0.0 for t ∈ 1:832 ] 
-                #λc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
-                λc = betahλc
-                λp = 0.0#1 .* patients
-                βh = 0.5
-            else
-                λc = 0.02 .* community
-                λp = 0.075 .* patients
-                βh = 0.075
-            end
+            λc = 0.02 .* community
+            λp = 0.075 .* patients
+            βh = 0.075
             for (j, ψ) ∈ enumerate([ 0, 1, 2, 5, 10 ])
                 λh = βh .* model["model_ψ=$(ψ)_vac=sept"][:, 3]
                 λt = λc .+ λp .+ λh
@@ -447,19 +395,18 @@ compartmentfigures = with_theme(theme_latexfonts()) do
     end
     setvalue!(axs[2, 1], 104, 0)
 
-
-    for i ∈ 1:9, j ∈ 1:5
+    for i ∈ 1:6, j ∈ 1:5
         formataxis!(
             axs[i, j];
-            hidex=(i != 9), hidexticks=(i != 9), hidey=(j != 1), hideyticks=(j != 1),
+            hidex=(i != 6), hidexticks=(i != 6), hidey=(j != 1), hideyticks=(j != 1),
             trimspines=true, hidespines=( :r, :t )
         )
-        if i != 9 hidespines!(axs[i, j], :b) end
+        if i != 6 hidespines!(axs[i, j], :b) end
         if j != 1 hidespines!(axs[i, j], :l) end
     end
 
     linkxaxes!(axs..., laxs...)
-    for i ∈ 1:9 linkyaxes!(axs[i, :]...) end
+    for i ∈ 1:6 linkyaxes!(axs[i, :]...) end
 
     for ax ∈ laxs 
         for x ∈ [ 104, 288, 469, 653, 834 ]
@@ -475,8 +422,8 @@ compartmentfigures = with_theme(theme_latexfonts()) do
         )
     end
     
-    Label(fig[10, 1:5], "Date"; fontsize=11.84, tellwidth=false)
-    for i ∈ 1:3 
+    Label(fig[7, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+    for i ∈ 1:2 
         Label(
             fig[(3 * i - 2), 0], "Prevalence"; 
             fontsize=11.84, rotation=π/2, tellheight=false
@@ -492,7 +439,7 @@ compartmentfigures = with_theme(theme_latexfonts()) do
     end
 
     colsize!(fig.layout, 6, Auto(0.1))
-    for i ∈ 1:9 
+    for i ∈ 1:6 
         formataxis!(
             axs[i, 6]; 
             hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
@@ -509,8 +456,8 @@ compartmentfigures = with_theme(theme_latexfonts()) do
     Label(fig[0, 5], L"$\psi=10$"; fontsize=11.84, halign=:left, tellwidth=false)
     
     colgap!(fig.layout, 1, 5)
-    for r ∈ [ 1, 2, 11 ] rowgap!(fig.layout, r, 5) end
-    labelplots!([ "A", "B", "C" ], fig; rows=[ 1, 4, 7 ], padding=( 0, 5, 0, 0 ))
+    for r ∈ [ 1, 2, 8 ] rowgap!(fig.layout, r, 5) end
+    labelplots!([ "A", "B" ], fig; rows=[ 1, 4 ], padding=( 0, 5, 0, 0 ))
 
     fig
 end
@@ -523,7 +470,7 @@ safesave(plotsdir("compartmentfigures.pdf"), compartmentfigures)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 simdifffigure = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 700 ))
+    fig = Figure(; size=( 500, 500 ))
     axs = [ 
         Axis(
             fig[(2 * i), j]; 
@@ -533,10 +480,10 @@ simdifffigure = with_theme(theme_latexfonts()) do
             ), 
             xticklabelrotation=-π/4,
         ) 
-        for i ∈ 1:12, j ∈ 1:6
+        for i ∈ 1:8, j ∈ 1:6
     ]
-    laxs = [ Axis(fig[2:24, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
-    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:12 ]
+    laxs = [ Axis(fig[2:16, j]; xticks=[ 104, 288, 469, 653, 834 ]) for j ∈ 1:5 ]
+    haxs = [ Axis(fig[(2 * i), 1:5]; xticks=[ 104, 288, 469, 653, 834 ]) for i ∈ 1:8 ]
 
     for 
         (i, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
@@ -569,29 +516,6 @@ simdifffigure = with_theme(theme_latexfonts()) do
             axs[i, j], 
             469:832, 
             (
-                cumsum(betahmodels["model_ψ=$(ψ)_vac=$(vac)"][469:832, 3]) .- 
-                cumsum(betahmodels["model_ψ=$(ψ)_vac=sept"][469:832, 3])
-            ); 
-            color=COLOURVECTOR[1], linewidth=1, 
-        )
-
-        formataxis!(
-            axs[i, j];
-            hidex=true, hidexticks=true, hidey=(j != 1), hideyticks=(j != 1),
-            trimspines=true, hidespines=( :r, :t, :b )
-        )
-        if j != 1 hidespines!(axs[i, j], :l) end
-    end
-
-    for 
-        (z, vac) ∈ enumerate([ "minus2", "minus1", "plus1", "plus2" ]),
-        (j, ψ) ∈ enumerate([ 0, 1, 2, 5, 10 ])
-
-        i = z + 8
-        lines!(
-            axs[i, j], 
-            469:832, 
-            (
                 cumsum(hospmodels["model_ψ=$(ψ)_vac=$(vac)"][469:832, 3]) .- 
                 cumsum(hospmodels["model_ψ=$(ψ)_vac=sept"][469:832, 3])
             ); 
@@ -607,7 +531,7 @@ simdifffigure = with_theme(theme_latexfonts()) do
         if j != 1 hidespines!(axs[i, j], :l) end
     end
 
-    for i ∈ 1:12 
+    for i ∈ 1:8 
         hlines!(
             haxs[i], 0; 
             color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
@@ -615,7 +539,7 @@ simdifffigure = with_theme(theme_latexfonts()) do
     end
 
     linkxaxes!(axs..., laxs...)
-    for i ∈ 1:12
+    for i ∈ 1:8
         linkyaxes!(axs[i, :]..., haxs[i])
     end
 
@@ -634,14 +558,14 @@ simdifffigure = with_theme(theme_latexfonts()) do
         )
     end
     
-    Label(fig[25, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+    Label(fig[17, 1:5], "Date"; fontsize=11.84, tellwidth=false)
     Label(
-        fig[2:24, 0], "Difference in cumulative incidence"; 
+        fig[2:16, 0], "Difference in cumulative incidence"; 
         fontsize=11.84, rotation=π/2, tellheight=false
     )
 
     colsize!(fig.layout, 6, Auto(0.1))
-    for i ∈ 1:12 
+    for i ∈ 1:8 
         formataxis!(
             haxs[i]; 
             hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
@@ -659,7 +583,7 @@ simdifffigure = with_theme(theme_latexfonts()) do
     Label(fig[0, 3], L"$\psi=2$"; fontsize=11.84, halign=:left, tellwidth=false)
     Label(fig[0, 4], L"$\psi=5$"; fontsize=11.84, halign=:left, tellwidth=false)
     Label(fig[0, 5], L"$\psi=10$"; fontsize=11.84, halign=:left, tellwidth=false)
-    for i ∈ 1:3
+    for i ∈ 1:2
         Label(
             fig[(8 * i - 7), 1], "2 months earlier"; 
             fontsize=11.84, halign=:left, tellwidth=false
@@ -679,9 +603,9 @@ simdifffigure = with_theme(theme_latexfonts()) do
     end
 
     colgap!(fig.layout, 1, 5)
-    for r ∈ [ 1:8; 10:16; 18:25 ] rowgap!(fig.layout, r, 5) end
+    for r ∈ [ 1:8; 10:17 ] rowgap!(fig.layout, r, 5) end
 
-    labelplots!([ "A", "B", "C" ], fig; rows=[ 1, 9, 17 ])
+    labelplots!([ "A", "B" ], fig; rows=[ 1, 9 ])
 
     fig
 end
