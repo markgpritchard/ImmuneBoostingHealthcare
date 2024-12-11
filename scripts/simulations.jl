@@ -111,9 +111,18 @@ cosmodels = let
     d
 end
 
+#betahλc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
+#betahλc = [
+#    t < 10 || 459 <= t < 469 ? 
+#        0.01 :
+#        0.0
+#    for t ∈ 1:832 
+#] 
+betahλc = 0.02 .* community
+
 betahmodels = let
     d = Dict{String, Matrix{Float64}}()
-    λc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
+    λc = betahλc
     for ψ ∈ [ 0, 1, 2, 5, 10 ]
         for (vac, lbl) ∈ zip(
             [
@@ -126,7 +135,7 @@ betahmodels = let
             [ "sept", "minus2", "minus1", "plus1", "plus2" ]
         )  
             p = HCWSEIIRRRp(
-                0.4,  # βh 
+                0.5,  # βh 
                 0.0,  # βp 
                 0.5,  # η 
                 0.2,  # γ 
@@ -412,9 +421,10 @@ compartmentfigures = with_theme(theme_latexfonts()) do
                 #λp = [ t < 180 ? 0.075 : 0.0075 for t ∈ 1:832 ] .* patients
                 #λc = [ t < 30 ? 0.015 : 0.0 for t ∈ 1:832 ] 
                 #λc = [ t < 10 ? coslambda((t - 319) / 365) : 0.0 for t ∈ 1:832 ] 
-                λc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
+                #λc = [ (t < 10 ? 1.0 : 0.1) * coslambda((t - 319) / 365) for t ∈ 1:832 ] 
+                λc = betahλc
                 λp = 0.0#1 .* patients
-                βh = 0.4
+                βh = 0.5
             else
                 λc = 0.02 .* community
                 λp = 0.075 .* patients
