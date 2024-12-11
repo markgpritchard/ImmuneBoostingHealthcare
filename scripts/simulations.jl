@@ -962,7 +962,7 @@ fitxs = let
     [ mr; [ mx ] ]
 end
 
-ys_l_m2, ys_m_m2, ys_u_m2 = let 
+ys_l_m2, ys_m_m2, ys_u_m2, df_m2 = let 
     m = miniregression(
         dataoutputs100["observationssincejuly"], 
         multipehospitaldifs["median_vac=minus2)"][:, 364]
@@ -974,10 +974,10 @@ ys_l_m2, ys_m_m2, ys_u_m2 = let
     ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
     ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
 
-    ( ys_l, ys_m, ys_u )
+    ( ys_l, ys_m, ys_u, df )
 end
 
-ys_l_m1, ys_m_m1, ys_u_m1 = let 
+ys_l_m1, ys_m_m1, ys_u_m1, df_m1 = let 
     m = miniregression(
         dataoutputs100["observationssincejuly"], 
         multipehospitaldifs["median_vac=minus1)"][:, 364]
@@ -989,10 +989,10 @@ ys_l_m1, ys_m_m1, ys_u_m1 = let
     ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
     ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
 
-    ( ys_l, ys_m, ys_u )
+    ( ys_l, ys_m, ys_u, df )
 end
 
-ys_l_p1, ys_m_p1, ys_u_p1 = let 
+ys_l_p1, ys_m_p1, ys_u_p1, df_p1 = let 
     m = miniregression(
         dataoutputs100["observationssincejuly"], 
         multipehospitaldifs["median_vac=plus1)"][:, 364]
@@ -1004,10 +1004,10 @@ ys_l_p1, ys_m_p1, ys_u_p1 = let
     ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
     ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
 
-    ( ys_l, ys_m, ys_u )
+    ( ys_l, ys_m, ys_u, df )
 end
 
-ys_l_p2, ys_m_p2, ys_u_p2 = let 
+ys_l_p2, ys_m_p2, ys_u_p2, df_p2 = let 
     m = miniregression(
         dataoutputs100["observationssincejuly"], 
         multipehospitaldifs["median_vac=plus2)"][:, 364]
@@ -1019,7 +1019,7 @@ ys_l_p2, ys_m_p2, ys_u_p2 = let
     ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
     ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
 
-    ( ys_l, ys_m, ys_u )
+    ( ys_l, ys_m, ys_u, df )
 end
 
 multiplehospitalfig = with_theme(theme_latexfonts()) do 
