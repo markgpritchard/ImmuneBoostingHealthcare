@@ -617,6 +617,13 @@ safesave(plotsdir("simdifffigure.pdf"), simdifffigure)
 # Fitted to one hospital
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+println("βh, $(quantile(fittedvalues_onehospitaldf.βh, [ 0.05, 0.5, 0.95 ]))")
+println("βp, $(quantile(fittedvalues_onehospitaldf.βp, [ 0.05, 0.5, 0.95 ]))")
+println("α7, $(quantile(fittedvalues_onehospitaldf.α7, [ 0.05, 0.5, 0.95 ]))")
+println("α8, $(quantile(fittedvalues_onehospitaldf.α8, [ 0.05, 0.5, 0.95 ]))")
+println("ψ, $(quantile(fittedvalues_onehospitaldf.ψ, [ 0.05, 0.5, 0.95 ]))")
+println("θ, $(quantile(fittedvalues_onehospitaldf.θ, [ 0.05, 0.5, 0.95 ]))")
+
 fittedcompartmentfigures = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 500, 350 ))
     ga = GridLayout(fig[1, 1])
@@ -935,6 +942,86 @@ safesave(plotsdir("fittedcompartmentfigures.pdf"), fittedcompartmentfigures)
 # Fitted to multiple hospitals 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+println("ψ, $(quantile(dataoutputs100["df"].ψ, [ 0.05, 0.5, 0.95 ]))")
+println("θ, $(quantile(dataoutputs100["df"].θ, [ 0.05, 0.5, 0.95 ]))")
+
+@model function miniregression(xs, ys)
+    α1 ~ Normal(0, 0.05)
+    α2 ~ Normal(0, 0.05)
+    σ2 ~ Exponential(1)
+
+    for (i, x) ∈ enumerate(xs)
+        ys[i] ~ Normal(α1 + α2 * x, σ2)
+    end 
+end
+
+fitxs = let 
+    mn = minimum(dataoutputs100["observationssincejuly"]) 
+    mx = maximum(dataoutputs100["observationssincejuly"]) 
+    mr = mn:0.01:mx 
+    [ mr; [ mx ] ]
+end
+
+ys_l_m2, ys_m_m2, ys_u_m2 = let 
+    m = miniregression(
+        dataoutputs100["observationssincejuly"], 
+        multipehospitaldifs["median_vac=minus2)"][:, 364]
+    )
+    chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
+    df = DataFrame(chain)
+    ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+
+    ( ys_l, ys_m, ys_u )
+end
+
+ys_l_m1, ys_m_m1, ys_u_m1 = let 
+    m = miniregression(
+        dataoutputs100["observationssincejuly"], 
+        multipehospitaldifs["median_vac=minus1)"][:, 364]
+    )
+    chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
+    df = DataFrame(chain)
+    ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+
+    ( ys_l, ys_m, ys_u )
+end
+
+ys_l_p1, ys_m_p1, ys_u_p1 = let 
+    m = miniregression(
+        dataoutputs100["observationssincejuly"], 
+        multipehospitaldifs["median_vac=plus1)"][:, 364]
+    )
+    chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
+    df = DataFrame(chain)
+    ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+
+    ( ys_l, ys_m, ys_u )
+end
+
+ys_l_p2, ys_m_p2, ys_u_p2 = let 
+    m = miniregression(
+        dataoutputs100["observationssincejuly"], 
+        multipehospitaldifs["median_vac=plus2)"][:, 364]
+    )
+    chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
+    df = DataFrame(chain)
+    ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+
+    ( ys_l, ys_m, ys_u )
+end
+
 multiplehospitalfig = with_theme(theme_latexfonts()) do 
     fig = Figure(; size=( 500, 350 ))
     ga = GridLayout(fig[1, 1])
@@ -1043,7 +1130,16 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
                     color=:black, linewidth=1,
                 )
             end
+        end
 
+        for (i, ym, yl, yu) ∈ zip(
+            1:4,
+            [ ys_m_m2, ys_m_m1, ys_m_p1, ys_m_p2 ],
+            [ ys_l_m2, ys_l_m1, ys_l_p1, ys_l_p2 ],
+            [ ys_u_m2, ys_u_m1, ys_u_p1, ys_u_p2 ]
+        )
+            lines!(axs[i], fitxs, ym; color=( COLOURVECTOR[1], 0.5 ), linewidth=1,)
+            band!(axs[i], fitxs, yl, yu; color=( COLOURVECTOR[1], 0.25 ),)        
         end
 
         for i ∈ 1:4 
