@@ -479,6 +479,7 @@ simdifffigure = with_theme(theme_latexfonts()) do
                 [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
             ), 
             xticklabelrotation=-π/4,
+            yticks=WilkinsonTicks(2),
         ) 
         for i ∈ 1:8, j ∈ 1:6
     ]
@@ -976,6 +977,8 @@ ys_l_m2, ys_m_m2, ys_u_m2, df_m2 = let
 
     ( ys_l, ys_m, ys_u, df )
 end
+println(quantile(df_m2.α1, [ 0.05, 0.5, 0.95 ]))
+println(quantile(df_m2.α2, [ 0.05, 0.5, 0.95 ]))
 
 ys_l_m1, ys_m_m1, ys_u_m1, df_m1 = let 
     m = miniregression(
@@ -991,6 +994,8 @@ ys_l_m1, ys_m_m1, ys_u_m1, df_m1 = let
 
     ( ys_l, ys_m, ys_u, df )
 end
+println(quantile(df_m1.α1, [ 0.05, 0.5, 0.95 ]))
+println(quantile(df_m1.α2, [ 0.05, 0.5, 0.95 ]))
 
 ys_l_p1, ys_m_p1, ys_u_p1, df_p1 = let 
     m = miniregression(
@@ -1006,6 +1011,8 @@ ys_l_p1, ys_m_p1, ys_u_p1, df_p1 = let
 
     ( ys_l, ys_m, ys_u, df )
 end
+println(quantile(df_p1.α1, [ 0.05, 0.5, 0.95 ]))
+println(quantile(df_p1.α2, [ 0.05, 0.5, 0.95 ]))
 
 ys_l_p2, ys_m_p2, ys_u_p2, df_p2 = let 
     m = miniregression(
@@ -1021,6 +1028,8 @@ ys_l_p2, ys_m_p2, ys_u_p2, df_p2 = let
 
     ( ys_l, ys_m, ys_u, df )
 end
+println(quantile(df_p2.α1, [ 0.05, 0.5, 0.95 ]))
+println(quantile(df_p2.α2, [ 0.05, 0.5, 0.95 ]))
 
 multiplehospitalfig = with_theme(theme_latexfonts()) do 
     fig = Figure(; size=( 500, 350 ))
