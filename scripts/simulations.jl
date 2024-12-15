@@ -737,7 +737,7 @@ end
 safesave(plotsdir("simdifffigure.pdf"), simdifffigure)
 
 simdifffigure_diffomega = with_theme(theme_latexfonts()) do
-    fig = Figure(; size=( 500, 500 ))
+    fig = Figure(; size=( 500, 400 ))
     axs = [ 
         Axis(
             fig[(2 * i), j]; 
@@ -786,6 +786,7 @@ simdifffigure_diffomega = with_theme(theme_latexfonts()) do
     end
 
     cb = Colorbar(fig[2:8, 5]; limits=( 0, 10 ))
+    formataxis!(cb)
 
     linkxaxes!(axs..., laxs...)
     for i ∈ 1:4
