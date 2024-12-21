@@ -1419,7 +1419,7 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
 
     colsize!(fig.layout, 2, Auto(0.6))
 
-    labelplots!([ "A", "B" ], [ ga, gb ];)# rows=[ 1, 4 ], )#padding=( 0, 5, 0, 0 ))
+    labelplots!([ "A", "B" ], [ ga, gb ]; rows=1,)
 
     fig
 end
