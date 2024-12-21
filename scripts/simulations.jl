@@ -1210,9 +1210,9 @@ ys_l_m2, ys_m_m2, ys_u_m2, df_m2 = let
     chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
     df = DataFrame(chain)
     ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
-    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
-    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
-    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys, 1) ]
 
     ( ys_l, ys_m, ys_u, df )
 end
@@ -1227,9 +1227,9 @@ ys_l_m1, ys_m_m1, ys_u_m1, df_m1 = let
     chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
     df = DataFrame(chain)
     ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
-    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
-    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
-    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys, 1) ]
 
     ( ys_l, ys_m, ys_u, df )
 end
@@ -1244,9 +1244,9 @@ ys_l_p1, ys_m_p1, ys_u_p1, df_p1 = let
     chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
     df = DataFrame(chain)
     ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
-    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
-    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
-    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys, 1) ]
 
     ( ys_l, ys_m, ys_u, df )
 end
@@ -1261,9 +1261,9 @@ ys_l_p2, ys_m_p2, ys_u_p2, df_p2 = let
     chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
     df = DataFrame(chain)
     ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
-    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys_m2, 1) ]
-    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys_m2, 1) ]
-    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys_m2, 1) ]
+    ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys, 1) ]
+    ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys, 1) ]
+    ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys, 1) ]
 
     ( ys_l, ys_m, ys_u, df )
 end
@@ -1418,6 +1418,8 @@ multiplehospitalfig = with_theme(theme_latexfonts()) do
 
 
     colsize!(fig.layout, 2, Auto(0.6))
+
+    labelplots!([ "A", "B" ], [ ga, gb ];)# rows=[ 1, 4 ], )#padding=( 0, 5, 0, 0 ))
 
     fig
 end
