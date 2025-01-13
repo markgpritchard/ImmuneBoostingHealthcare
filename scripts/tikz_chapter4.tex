@@ -81,17 +81,17 @@
 	graphs/every graph/.style={edges=rounded corners}]
 	\graph [grow down sep=8mm, branch right=7mm] {
 		ic/"$i_{\mathrm{c}}$" [supinfectious,yshift=-35mm] {"$i_{\mathrm{c}}$"};
-		ipr1/"$i^{\prime}_{1j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{1j}$"} ->[black!50,"$1$"'] 
-		ipr2/"$i^{\prime}_{2j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{2j}$"} ->[black!50,"$1$"'] 
-		ipr3/"$i^{\prime}_{3j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{3j}$"} ->[black!50,"$1$"'] 		
+		ipr1/"$i^{\prime}_{1\mathrm{h}j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{1\mathrm{h}j}$"} ->[black!50,"$1$"'] 
+		ipr2/"$i^{\prime}_{2\mathrm{h}j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{2\mathrm{h}j}$"} ->[black!50,"$1$"'] 
+		ipr3/"$i^{\prime}_{3\mathrm{h}j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{3\mathrm{h}j}$"} ->[black!50,"$1$"'] 		
 		ipvdots/"$\vdots$" [xshift=24mm,yshift=-13.5mm] {"$\vdots$"} ->[black!50,"$1$"'] 
-		ipr10/"$i^{\prime}_{10j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{10j}$"};
-		s/"$s_j$" [supnoninfectious,xshift=38mm] {"$s_j$"}->[dashed,red!50!black!50,"$\lambda$"']
-		e/"$e_j$" [supnoninfectious,xshift=38mm] {"$e_j$"} ->[black!50,"$\rho$"']
-		i/"$i_j$" [supinfectious,xshift=38mm] {"$i_j$"} ->[black!50,"$\gamma$"']		
-		r1/"$r_{1j}$" [supnoninfectious,xshift=38mm] {"$r_{1j}$"} ->[black!50,"$3\omega$"']
-		r2/"$r_{2j}$" [supnoninfectious,xshift=38mm] {"$r_{2j}$"} ->[black!50,"$3\omega$"']
-		r3/"$r_{3j}$" [supnoninfectious,xshift=38mm] {"$r_{3j}$"};
+		ipr10/"$i^{\prime}_{10\mathrm{h}j}$" [supnoninfectious,xshift=24mm,yshift=-13.5mm] {"$i^{\prime}_{10\mathrm{h}j}$"};
+		s/"$s_{\mathrm{h}j}$" [supnoninfectious,xshift=38mm] {"$s_{\mathrm{h}j}$"}->[dashed,red!50!black!50,"$\lambda$"']
+		e/"$e_{\mathrm{h}j}$" [supnoninfectious,xshift=38mm] {"$e_{\mathrm{h}j}$"} ->[black!50,"$\rho$"']
+		i/"$i_{\mathrm{h}j}$" [supinfectious,xshift=38mm] {"$i_{\mathrm{h}j}$"} ->[black!50,"$\gamma$"']		
+		r1/"$r_{1\mathrm{h}j}$" [supnoninfectious,xshift=38mm] {"$r_{1\mathrm{h}j}$"} ->[black!50,"$3\omega$"']
+		r2/"$r_{2\mathrm{h}j}$" [supnoninfectious,xshift=38mm] {"$r_{2\mathrm{h}j}$"} ->[black!50,"$3\omega$"']
+		r3/"$r_{3\mathrm{h}j}$" [supnoninfectious,xshift=38mm] {"$r_{3\mathrm{h}j}$"};
 		ip/"$i_{\mathrm{p}j}$" [supinfectious,xshift=79mm,yshift=-35mm] {"$i_{\mathrm{p}j}$"};
 	};
 	[font=\sffamily\bfseries,align=center,text width=3cm] {Healthcare workers};
