@@ -66,6 +66,9 @@ fittedvalues_onehospitaldf = let
     df 
 end
 
+# remove outlying chains 
+filter!(:chain => x -> x ∈ [ 1, 4 ], fittedvalues_onehospitaldf)
+
 dataoutputs100 = load(datadir("sims", "dataoutputs100.jld2"))
 
 
@@ -864,6 +867,65 @@ println("α8, $(quantile(fittedvalues_onehospitaldf.α8, [ 0.05, 0.5, 0.95 ]))")
 println("ψ, $(quantile(fittedvalues_onehospitaldf.ψ, [ 0.05, 0.5, 0.95 ]))")
 println("θ, $(quantile(fittedvalues_onehospitaldf.θ, [ 0.05, 0.5, 0.95 ]))")
 
+onehospitalchainsplot = with_theme(theme_latexfonts()) do  
+    _names = [
+        "log density",
+        L"$\beta_{\mathrm{h}}$",
+        L"$\beta_{\mathrm{p}}$",
+        L"$\alpha_1$",
+        L"$\alpha_2$",
+        L"$\psi$",
+        L"$\theta$",
+        L"$\sigma^2$",
+    ]
+
+    fig = Figure(; size=( 500, 800 ))
+    axs1 = [ 
+        Axis(fig[i, 2*j-1], xticks=WilkinsonTicks(3), yticks=WilkinsonTicks(3)) 
+        for i ∈ 1:8, j ∈ 1:2 
+    ]
+
+    for i ∈ 4:-1:1
+        i == 2 && continue 
+        i == 3 && continue
+        _tdf = filter(:chain => x -> x == i, fittedvalues_onehospitaldf)
+        lines!(
+            axs1[1, 1], _tdf.iteration, _tdf.log_density; 
+            color=COLOURVECTOR[i], linewidth=1,
+        )
+        density!(
+            axs1[1, 2], _tdf.log_density; 
+            color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+        )
+        for (j, v) ∈ enumerate(names(_tdf)[3:9])
+            lines!(
+                axs1[1+j, 1], _tdf.iteration, getproperty(_tdf, v); 
+                color=COLOURVECTOR[i], linewidth=1,
+            )
+            density!(
+                axs1[1+j, 2], getproperty(_tdf, v); 
+                color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+            )
+        end
+    end
+
+    for i ∈ 1:8, j ∈ 1:2
+        formataxis!(axs1[i, j]; hidespines=( :r, :t ), trimspines=true,)
+        #Label(fig[i, 1], "Iteration"; fontsize=11.84, tellwidth=false)
+        Label(fig[i, 2], "Density"; fontsize=11.84, rotation=π/2, tellheight=false,)
+        Label(fig[i, 0], _names[i]; fontsize=11.84, rotation=π/2, tellheight=false,)
+    end
+
+    Label(fig[9, 1], "Iteration"; fontsize=11.84, tellwidth=false,)
+    for c ∈ [ 1, 3 ] colgap!(fig.layout, c, 5) end
+    rowgap!(fig.layout, 8, 5)
+
+    fig
+end
+
+safesave(plotsdir("onehospitalchainsplot.pdf"), onehospitalchainsplot)
+
+
 fittedcompartmentfigures = with_theme(theme_latexfonts()) do
     fig = Figure(; size=( 500, 350 ))
     ga = GridLayout(fig[1, 1])
@@ -1181,6 +1243,579 @@ safesave(plotsdir("fittedcompartmentfigures.pdf"), fittedcompartmentfigures)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Fitted to multiple hospitals 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+multiplehospitalchainsplot_a = with_theme(theme_latexfonts()) do  
+    _names1 = [
+        "log density",
+        L"$\omega$",
+        L"$\theta$", 
+        L"\psi", 
+        L"$\sigma_{\mathrm{h}}^2$", 
+        L"$\sigma_{\mathrm{p}}^2$", 
+        L"\beta_{\mathrm{h}1}", 
+        L"\beta_{\mathrm{h}2}", 
+        L"\beta_{\mathrm{h}3}", 
+        L"\beta_{\mathrm{h}4}", 
+        L"\beta_{\mathrm{h}5}", 
+        L"\beta_{\mathrm{h}6}", 
+        L"\beta_{\mathrm{h}7}", 
+    ]
+    _names2 = [
+        L"\beta_{\mathrm{h}8}", 
+        L"\beta_{\mathrm{h}9}", 
+        L"\beta_{\mathrm{h}10}", 
+        L"\beta_{\mathrm{h}11}", 
+        L"\beta_{\mathrm{h}12}", 
+        L"\beta_{\mathrm{h}13}", 
+        L"\beta_{\mathrm{h}14}", 
+        L"\beta_{\mathrm{h}15}", 
+        L"\beta_{\mathrm{h}16}", 
+        L"\beta_{\mathrm{h}17}", 
+        L"\beta_{\mathrm{h}18}", 
+        L"\beta_{\mathrm{h}19}", 
+        L"\beta_{\mathrm{h}20}", 
+    ]
+    _names3 = [ 
+        "betahs[21]", 
+        "betahs[22]", 
+        "betahs[23]", 
+        "betaps[1]", 
+        "betaps[2]", 
+        "betaps[3]", 
+        "betaps[4]", 
+        "betaps[5]", 
+        "betaps[6]", 
+        "betaps[7]", 
+        "betaps[8]", 
+        "betaps[9]", 
+        "betaps[10]",
+    ]
+    _names4 = [ 
+        "betaps[11]", 
+        "betaps[12]", 
+        "betaps[13]", 
+        "betaps[14]", 
+        "betaps[15]", 
+        "betaps[16]", 
+        "betaps[17]", 
+        "betaps[18]", 
+        "betaps[19]", 
+        "betaps[20]",
+        "betaps[21]", 
+        "betaps[22]", 
+        "betaps[23]"
+    ]
+
+    fig = Figure(; size=( 500, 800 ))
+    axs1 = [ 
+        Axis(fig[i, 2*j-1], xticks=WilkinsonTicks(3), yticks=WilkinsonTicks(3)) 
+        for i ∈ 1:13, j ∈ 1:2 
+    ]
+    axs2 = [ 
+        Axis(fig[i, 2*j+3], xticks=WilkinsonTicks(3), yticks=WilkinsonTicks(3)) 
+        for i ∈ 1:13, j ∈ 1:2 
+    ]
+
+    for i ∈ 4:-1:1
+        _tdf = filter(:chain => x -> x == i, dataoutputs100["df"])
+        lines!(
+            axs1[1, 1], _tdf.iteration, _tdf.log_density; 
+            color=COLOURVECTOR[i], linewidth=1,
+        )
+        density!(
+            axs1[1, 2], _tdf.log_density; 
+            color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+        )
+        for (j, v) ∈ enumerate(names(_tdf)[[ 11:13; 15:23 ]])
+            lines!(
+                axs1[1+j, 1], _tdf.iteration, getproperty(_tdf, v); 
+                color=COLOURVECTOR[i], linewidth=1,
+            )
+            density!(
+                axs1[1+j, 2], getproperty(_tdf, v); 
+                color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+            )
+        end
+        for (j, v) ∈ enumerate(names(_tdf)[24:36])
+            lines!(
+                axs2[j, 1], _tdf.iteration, getproperty(_tdf, v); 
+                color=COLOURVECTOR[i], linewidth=1,
+            )
+            density!(
+                axs2[j, 2], getproperty(_tdf, v); 
+                color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+            )
+        end
+    end
+
+    for i ∈ 1:13, j ∈ 1:2
+        formataxis!(axs1[i, j]; hidespines=( :r, :t ), trimspines=true,)
+        #Label(fig[i, 1], "Iteration"; fontsize=11.84, tellwidth=false)
+        Label(fig[i, 2], "Density"; fontsize=11.84, rotation=π/2, tellheight=false,)
+        Label(fig[i, 0], _names1[i]; fontsize=11.84, rotation=π/2, tellheight=false,)
+        formataxis!(axs2[i, j]; hidespines=( :r, :t ), trimspines=true,)
+        #Label(fig[i, 5], "Iteration"; fontsize=11.84, tellwidth=false)
+        Label(fig[i, 6], "Density"; fontsize=11.84, rotation=π/2, tellheight=false,)
+        Label(fig[i, 4], _names2[i]; fontsize=11.84, rotation=π/2, tellheight=false,)
+    end
+
+    Label(fig[14, 1], "Iteration"; fontsize=11.84, tellwidth=false,)
+    Label(fig[14, 5], "Iteration"; fontsize=11.84, tellwidth=false, )
+    for c ∈ [ 1, 3, 5, 7 ] colgap!(fig.layout, c, 5) end
+    rowgap!(fig.layout, 13, 5)
+
+    fig
+end
+
+safesave(plotsdir("multiplehospitalchainsplot_a.pdf"), multiplehospitalchainsplot_a)
+
+multiplehospitalchainsplot_b = with_theme(theme_latexfonts()) do  
+    _names1 = [ 
+        L"\beta_{\mathrm{h}21}", 
+        L"\beta_{\mathrm{h}22}", 
+        L"\beta_{\mathrm{h}23}", 
+        L"\beta_{\mathrm{p}1}", 
+        L"\beta_{\mathrm{p}2}", 
+        L"\beta_{\mathrm{p}3}", 
+        L"\beta_{\mathrm{p}4}", 
+        L"\beta_{\mathrm{p}5}", 
+        L"\beta_{\mathrm{p}6}",  
+        L"\beta_{\mathrm{p}7}", 
+        L"\beta_{\mathrm{p}8}", 
+        L"\beta_{\mathrm{p}9}", 
+        L"\beta_{\mathrm{p}10}",
+    ]
+    _names2 = [ 
+        L"\beta_{\mathrm{p}11}", 
+        L"\beta_{\mathrm{p}12}", 
+        L"\beta_{\mathrm{p}13}", 
+        L"\beta_{\mathrm{p}14}", 
+        L"\beta_{\mathrm{p}15}", 
+        L"\beta_{\mathrm{p}16}", 
+        L"\beta_{\mathrm{p}17}", 
+        L"\beta_{\mathrm{p}18}", 
+        L"\beta_{\mathrm{p}19}", 
+        L"\beta_{\mathrm{p}20}",
+        L"\beta_{\mathrm{p}21}",
+        L"\beta_{\mathrm{p}22}", 
+        L"\beta_{\mathrm{p}23}",
+    ]
+
+    fig = Figure(; size=( 500, 800 ))
+    axs1 = [ 
+        Axis(fig[i, 2*j-1], xticks=WilkinsonTicks(3), yticks=WilkinsonTicks(3)) 
+        for i ∈ 1:13, j ∈ 1:2 
+    ]
+    axs2 = [ 
+        Axis(fig[i, 2*j+3], xticks=WilkinsonTicks(3), yticks=WilkinsonTicks(3)) 
+        for i ∈ 1:13, j ∈ 1:2 
+    ]
+
+    for i ∈ 4:-1:1
+        _tdf = filter(:chain => x -> x == i, dataoutputs100["df"])
+        for (j, v) ∈ enumerate(names(_tdf)[37:49])
+            lines!(
+                axs1[j, 1], _tdf.iteration, getproperty(_tdf, v); 
+                color=COLOURVECTOR[i], linewidth=1,
+            )
+            density!(
+                axs1[j, 2], getproperty(_tdf, v); 
+                color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+            )
+        end
+        for (j, v) ∈ enumerate(names(_tdf)[50:62])
+            lines!(
+                axs2[j, 1], _tdf.iteration, getproperty(_tdf, v); 
+                color=COLOURVECTOR[i], linewidth=1,
+            )
+            density!(
+                axs2[j, 2], getproperty(_tdf, v); 
+                color=( :white, 0 ), strokecolor=COLOURVECTOR[i], strokewidth=1,
+            )
+        end
+    end
+
+    for i ∈ 1:13, j ∈ 1:2
+        formataxis!(axs1[i, j]; hidespines=( :r, :t ), trimspines=true,)
+        #Label(fig[i, 1], "Iteration"; fontsize=11.84, tellwidth=false)
+        Label(fig[i, 2], "Density"; fontsize=11.84, rotation=π/2, tellheight=false,)
+        Label(fig[i, 0], _names1[i]; fontsize=11.84, rotation=π/2, tellheight=false,)
+        formataxis!(axs2[i, j]; hidespines=( :r, :t ), trimspines=true,)
+        #Label(fig[i, 5], "Iteration"; fontsize=11.84, tellwidth=false)
+        Label(fig[i, 6], "Density"; fontsize=11.84, rotation=π/2, tellheight=false,)
+        Label(fig[i, 4], _names2[i]; fontsize=11.84, rotation=π/2, tellheight=false,)
+    end
+
+    Label(fig[14, 1], "Iteration"; fontsize=11.84, tellwidth=false,)
+    Label(fig[14, 5], "Iteration"; fontsize=11.84, tellwidth=false, )
+    for c ∈ [ 1, 3, 5, 7 ] colgap!(fig.layout, c, 5) end
+    rowgap!(fig.layout, 13, 5)
+
+    fig
+end
+
+safesave(plotsdir("multiplehospitalchainsplot_b.pdf"), multiplehospitalchainsplot_b)
+
+### priors 
+
+mhmodel = let 
+    df = filter(:CommissioningRegion => x -> x == "MIDLANDS COMMISSIONING REGION", finaldata)
+
+    nhospitals = counthospitals(df)
+    ndates = countdates(df)
+    @unpack newstaff, patients, staff = datamatrices(df, ndates, nhospitals)
+    @unpack vpd, psb = hospitalconditionmatrices(df)
+    
+    mhmodel = fitmodel( 
+        patients, staff, vaccinated, community, 
+        vpd, psb, stringency, ndates, nhospitals
+    )
+    mhmodel
+end
+
+mhpriors = sample(mhmodel, Prior(), MCMCThreads(), 4000, 4)
+
+
+hospitalpredictedprevalence = let
+    l = zeros(832, 23)
+    m = zeros(832, 23)
+    u = zeros(832, 23)
+    for i ∈ 1:23, t ∈ 1:832 
+        _l, _m, _u = quantile(
+            dataoutputs100["modelledoutput"]["predictdiagnoses"][t, i, :]
+        )
+        l[t, i] = _l 
+        m[t, i] = _m 
+        u[t, i] = _u
+    end
+
+    @ntuple l m u 
+end
+
+
+hospitalprevalenceplots = with_theme(theme_latexfonts()) do 
+    fig = Figure(; size=( 500, 500 ))
+    axs = [ 
+        Axis(
+            fig[i, j]; 
+            xticks=( 
+                [ 104, 288, 469, 653, 834 ], 
+                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+            ),
+            xticklabelrotation=-π/4,
+        ) 
+        for i ∈ 1:5, j ∈ 1:4 
+    ]
+    axs5 = [ 
+        Axis(
+            fig[i, 5]; 
+            xticks=( 
+                [ 104, 288, 469, 653, 834 ], 
+                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+            ),
+            xticklabelrotation=-π/4,
+        ) 
+        for i ∈ 1:2 
+    ]   
+    axs6 =  Axis(
+        fig[3:4, 5]; 
+        xticks=( 
+            [ 104, 288, 469, 653, 834 ], 
+            [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+        ),
+        xticklabelrotation=-π/4,
+    ) 
+    axs7 = Axis(fig[1, 6])
+    vaxs = [ Axis(fig[1:5, i]) for i ∈ 1:4 ]
+    vax5 = Axis(fig[1:3, 5]) 
+        
+    for i ∈ 1:20 
+        _tdf = filter(
+            :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[i], 
+            dataoutputs100["modelledoutput"]["data"]
+        )
+        scatter!(axs[i], _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+        lines!(
+            axs[i], _tdf.t, hospitalpredictedprevalence.m[:, i]; 
+            color=COLOURVECTOR[1], linewidth=1,
+        )
+        band!(
+            axs[i], 
+            _tdf.t, 
+            hospitalpredictedprevalence.l[:, i], 
+            hospitalpredictedprevalence.u[:, i]; 
+            color=( COLOURVECTOR[1], 0.25 ),
+        )        
+    end
+    for i ∈ 1:2 
+        _tdf = filter(
+            :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[20+i], 
+            dataoutputs100["modelledoutput"]["data"]
+        )
+        scatter!(axs5[i], _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+        lines!(
+            axs5[i], _tdf.t, hospitalpredictedprevalence.m[:, 20+i]; 
+            color=COLOURVECTOR[1], linewidth=1,
+        )
+        band!(
+            axs5[i],
+            _tdf.t, 
+            hospitalpredictedprevalence.l[:, 20+i], 
+            hospitalpredictedprevalence.u[:, 20+i]; 
+            color=( COLOURVECTOR[1], 0.25 ),
+        )         
+    end
+    _tdf = filter(
+        :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[23], 
+        dataoutputs100["modelledoutput"]["data"]
+    )
+    scatter!(axs6, _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+    lines!(
+        axs6, _tdf.t, hospitalpredictedprevalence.m[:, 23]; 
+        color=COLOURVECTOR[1], linewidth=1,
+    )
+    band!(
+        axs6,
+        _tdf.t, 
+        hospitalpredictedprevalence.l[:, 23], 
+        hospitalpredictedprevalence.u[:, 23]; 
+        color=( COLOURVECTOR[1], 0.25 ),
+    )      
+
+    for x ∈ [ 104, 288, 469, 653, 834 ] 
+        for i ∈ 1:4 
+            vlines!(
+                vaxs[i], x; 
+                color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+            )
+        end
+        vlines!(
+            vax5, x; 
+            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+        )
+    end
+
+    for i ∈ 1:5, j ∈ 1:4 
+        formataxis!(
+            axs[i, j]; 
+            hidex=(i != 5), hidexticks=(i != 5), 
+            hidey=(j != 1), hideyticks=(j != 1),
+            trimspines=true, 
+            hidespines=( :r, :t )
+        )
+        if i != 5 hidespines!(axs[i, j], :b) end 
+        if j != 1 hidespines!(axs[i, j], :l) end 
+    end
+    for i ∈ 1:2 
+        formataxis!(
+            axs5[i]; 
+            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+            trimspines=true, hidespines=( :r, :t, :b, :l )
+        )
+    end
+    formataxis!(
+        axs6; 
+        trimspines=true, hidey=true, hideyticks=true, hidespines=( :r, :t, :l )
+    )
+    axs6.alignmode = Mixed(; bottom=48)
+    formataxis!(
+        axs7; 
+        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+        hidespines=( :l, :r, :t, :b )
+    )
+    for i ∈ 1:4 
+        formataxis!(
+            vaxs[i]; 
+            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+            hidespines=( :l, :r, :t, :b )
+        )
+    end
+    formataxis!(
+        vax5; 
+        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+        hidespines=( :l, :r, :t, :b )
+    )
+    colsize!(fig.layout, 6, Auto(0.1))
+    linkxaxes!(axs..., axs5..., axs6, vaxs..., vax5)
+    linkyaxes!(axs..., axs5..., axs6)
+    Label(fig[1:5, 0], "Proportion absent"; fontsize=11.84, rotation=π/2, tellheight=false)
+    Label(fig[6, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+    fig
+end
+
+safesave(plotsdir("hospitalprevalenceplots.pdf"), hospitalprevalenceplots)
+
+
+hospitalpredictedprevalence = let
+    l = zeros(832, 23)
+    m = zeros(832, 23)
+    u = zeros(832, 23)
+    for i ∈ 1:23, t ∈ 1:832 
+        _l, _m, _u = quantile(
+            dataoutputs100["modelledoutput"]["predictdiagnoses"][t, i, :]
+        )
+        l[t, i] = _l 
+        m[t, i] = _m 
+        u[t, i] = _u
+    end
+
+    @ntuple l m u 
+end
+
+
+hospitalprevalenceplots = with_theme(theme_latexfonts()) do 
+    fig = Figure(; size=( 500, 500 ))
+    axs = [ 
+        Axis(
+            fig[i, j]; 
+            xticks=( 
+                [ 104, 288, 469, 653, 834 ], 
+                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+            ),
+            xticklabelrotation=-π/4,
+        ) 
+        for i ∈ 1:5, j ∈ 1:4 
+    ]
+    axs5 = [ 
+        Axis(
+            fig[i, 5]; 
+            xticks=( 
+                [ 104, 288, 469, 653, 834 ], 
+                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+            ),
+            xticklabelrotation=-π/4,
+        ) 
+        for i ∈ 1:2 
+    ]   
+    axs6 =  Axis(
+        fig[3:4, 5]; 
+        xticks=( 
+            [ 104, 288, 469, 653, 834 ], 
+            [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+        ),
+        xticklabelrotation=-π/4,
+    ) 
+    axs7 = Axis(fig[1, 6])
+    vaxs = [ Axis(fig[1:5, i]) for i ∈ 1:4 ]
+    vax5 = Axis(fig[1:3, 5]) 
+        
+    for i ∈ 1:20 
+        _tdf = filter(
+            :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[i], 
+            dataoutputs100["modelledoutput"]["data"]
+        )
+        scatter!(axs[i], _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+        lines!(
+            axs[i], _tdf.t, hospitalpredictedprevalence.m[:, i]; 
+            color=COLOURVECTOR[1], linewidth=1,
+        )
+        band!(
+            axs[i], 
+            _tdf.t, 
+            hospitalpredictedprevalence.l[:, i], 
+            hospitalpredictedprevalence.u[:, i]; 
+            color=( COLOURVECTOR[1], 0.25 ),
+        )        
+    end
+    for i ∈ 1:2 
+        _tdf = filter(
+            :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[20+i], 
+            dataoutputs100["modelledoutput"]["data"]
+        )
+        scatter!(axs5[i], _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+        lines!(
+            axs5[i], _tdf.t, hospitalpredictedprevalence.m[:, 20+i]; 
+            color=COLOURVECTOR[1], linewidth=1,
+        )
+        band!(
+            axs5[i],
+            _tdf.t, 
+            hospitalpredictedprevalence.l[:, 20+i], 
+            hospitalpredictedprevalence.u[:, 20+i]; 
+            color=( COLOURVECTOR[1], 0.25 ),
+        )         
+    end
+    _tdf = filter(
+        :Code => x -> x == unique(dataoutputs100["modelledoutput"]["data"].Code)[23], 
+        dataoutputs100["modelledoutput"]["data"]
+    )
+    scatter!(axs6, _tdf.t, _tdf.StaffProportion; markersize=2, color=:black)
+    lines!(
+        axs6, _tdf.t, hospitalpredictedprevalence.m[:, 23]; 
+        color=COLOURVECTOR[1], linewidth=1,
+    )
+    band!(
+        axs6,
+        _tdf.t, 
+        hospitalpredictedprevalence.l[:, 23], 
+        hospitalpredictedprevalence.u[:, 23]; 
+        color=( COLOURVECTOR[1], 0.25 ),
+    )      
+
+    for x ∈ [ 104, 288, 469, 653, 834 ] 
+        for i ∈ 1:4 
+            vlines!(
+                vaxs[i], x; 
+                color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+            )
+        end
+        vlines!(
+            vax5, x; 
+            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+        )
+    end
+
+    for i ∈ 1:5, j ∈ 1:4 
+        formataxis!(
+            axs[i, j]; 
+            hidex=(i != 5), hidexticks=(i != 5), 
+            hidey=(j != 1), hideyticks=(j != 1),
+            trimspines=true, 
+            hidespines=( :r, :t )
+        )
+        if i != 5 hidespines!(axs[i, j], :b) end 
+        if j != 1 hidespines!(axs[i, j], :l) end 
+    end
+    for i ∈ 1:2 
+        formataxis!(
+            axs5[i]; 
+            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+            trimspines=true, hidespines=( :r, :t, :b, :l )
+        )
+    end
+    formataxis!(
+        axs6; 
+        trimspines=true, hidey=true, hideyticks=true, hidespines=( :r, :t, :l )
+    )
+    axs6.alignmode = Mixed(; bottom=48)
+    formataxis!(
+        axs7; 
+        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+        hidespines=( :l, :r, :t, :b )
+    )
+    for i ∈ 1:4 
+        formataxis!(
+            vaxs[i]; 
+            hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+            hidespines=( :l, :r, :t, :b )
+        )
+    end
+    formataxis!(
+        vax5; 
+        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+        hidespines=( :l, :r, :t, :b )
+    )
+    colsize!(fig.layout, 6, Auto(0.1))
+    linkxaxes!(axs..., axs5..., axs6, vaxs..., vax5)
+    linkyaxes!(axs..., axs5..., axs6)
+    Label(fig[1:5, 0], "Proportion absent"; fontsize=11.84, rotation=π/2, tellheight=false)
+    Label(fig[6, 1:5], "Date"; fontsize=11.84, tellwidth=false)
+    fig
+end
+
+safesave(plotsdir("hospitalprevalenceplots.pdf"), hospitalprevalenceplots)
+
+
 
 println("ψ, $(quantile(dataoutputs100["df"].ψ, [ 0.05, 0.5, 0.95 ]))")
 println("θ, $(quantile(dataoutputs100["df"].θ, [ 0.05, 0.5, 0.95 ]))")
