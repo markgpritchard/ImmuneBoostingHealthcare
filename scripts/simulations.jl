@@ -358,17 +358,14 @@ end
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 vaccinationhistory = let 
-    vaccinationhistory = zeros(832, 4)  
-    # columns: unvaccinated, vaccinated, boosted, vaccinated before boosting began
+    vaccinationhistory = zeros(832, 3)  # columns: unvaccinated, vaccinated, boosted
     vaccinationhistory[1, 1] = 1  # start with one unvaccinated individual 
     for i ∈ 2:832 
         _v = vaccinationhistory[i-1, 1] * vaccinated[i] 
         if i >= 556 
-            _b = vaccinationhistory[i-1, 4] * vaccinated[i] 
-            vaccinationhistory[i, 4] = vaccinationhistory[i-1, 4] - _b
+            _b = vaccinationhistory[i-1, 2] * vaccinated[i] 
         else 
             _b = 0.0 
-            vaccinationhistory[i, 4] = vaccinationhistory[i-1, 4] + _v
         end
         vaccinationhistory[i, 1] = vaccinationhistory[i-1, 1] - _v
         vaccinationhistory[i, 2] = vaccinationhistory[i-1, 2] + _v - _b 
