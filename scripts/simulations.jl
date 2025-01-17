@@ -354,6 +354,99 @@ end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Simulated proportion vaccinated 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+vaccinationhistory = let 
+    vaccinationhistory = zeros(832, 4)  
+    # columns: unvaccinated, vaccinated, boosted, vaccinated before boosting began
+    vaccinationhistory[1, 1] = 1  # start with one unvaccinated individual 
+    for i ∈ 2:832 
+        _v = vaccinationhistory[i-1, 1] * vaccinated[i] 
+        if i >= 556 
+            _b = vaccinationhistory[i-1, 4] * vaccinated[i] 
+            vaccinationhistory[i, 4] = vaccinationhistory[i-1, 4] - _b
+        else 
+            _b = 0.0 
+            vaccinationhistory[i, 4] = vaccinationhistory[i-1, 4] + _v
+        end
+        vaccinationhistory[i, 1] = vaccinationhistory[i-1, 1] - _v
+        vaccinationhistory[i, 2] = vaccinationhistory[i-1, 2] + _v - _b 
+        vaccinationhistory[i, 3] = vaccinationhistory[i-1, 3] + _b 
+    end
+
+    vaccinationhistory
+end
+
+vaccinatedplot = with_theme(theme_latexfonts()) do
+    fig = Figure(; size=( 500, 500 ))
+    axs = [ 
+        Axis(
+            fig[i, 1], 
+            xticks=( 
+                [ 104, 288, 469, 653, 834 ], 
+                [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+            ), 
+            xticklabelrotation=-π/4,
+        ) 
+        for i ∈ 1:3 
+    ]
+    vax = Axis(fig[1:3, 1])
+    lines!(axs[1], 1:832, vaccinated; color=COLOURVECTOR[1], linewidth=1,)
+    lines!(
+        axs[2], 1:832, [ sum(@view vaccinationhistory[t, 2:3]) for t ∈ 1:832 ]; 
+        color=COLOURVECTOR[2], linewidth=1,
+    )
+    lines!(axs[3], 1:832, vaccinationhistory[:, 3]; color=COLOURVECTOR[3], linewidth=1,)
+    for x ∈ [ 104, 288, 469, 653, 834 ]
+        vlines!(
+            vax, x; 
+            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
+        )
+    end
+
+    linkxaxes!(axs..., vax)
+    linkyaxes!(axs[2], axs[3])
+    for i ∈ 1:3 
+        formataxis!(
+            axs[i]; 
+            hidex=(i != 3), hidexticks=(i != 3), trimspines=true, hidespines=( :r, :t )
+        )
+        i == 3 && continue 
+        hidespines!(axs[i], :b)
+    end
+    formataxis!(
+        vax,
+        hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
+        hidespines=(:l, :r, :t, :b ),
+    )
+
+    Label(
+        fig[4, 1], "Date"; 
+        fontsize=11.84, tellwidth=false
+    )
+    Label(
+        fig[1, 0], L"Vaccination \\ rate, $\nu$"; 
+        fontsize=11.84, rotation=π/2, tellheight=false
+    )
+    Label(
+        fig[2, 0], "Proportion vaccinated"; 
+        fontsize=11.84, rotation=π/2, tellheight=false
+    )
+    Label(
+        fig[3, 0], "Proportion received\nbooster vaccine"; 
+        fontsize=11.84, rotation=π/2, tellheight=false
+    )
+    colgap!(fig.layout, 1, 5)
+    rowgap!(fig.layout, 3, 5)
+
+    fig
+end
+
+safesave(plotsdir("vaccinatedplot.pdf"), vaccinatedplot)
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Plot compartments 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
