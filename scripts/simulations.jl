@@ -1688,7 +1688,7 @@ hospitalprevalenceplots = with_theme(theme_latexfonts()) do
         axs6; 
         trimspines=true, hidey=true, hideyticks=true, hidespines=( :r, :t, :l )
     )
-    axs6.alignmode = Mixed(; bottom=48)
+    axs6.alignmode = Mixed(; bottom=41)
     formataxis!(
         axs7; 
         hidex=true, hidexticks=true, hidey=true, hideyticks=true, 
@@ -1715,7 +1715,6 @@ hospitalprevalenceplots = with_theme(theme_latexfonts()) do
 end
 
 safesave(plotsdir("hospitalprevalenceplots.pdf"), hospitalprevalenceplots)
-
 
 
 println("ψ, $(quantile(dataoutputs100["df"].ψ, [ 0.05, 0.5, 0.95 ]))")
