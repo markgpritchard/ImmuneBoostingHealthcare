@@ -3,11 +3,17 @@
 ################################################################################
 
 # Folders to ignore - files may be too large, too many, etc. NOTE: EDIT IF NEEDED.
-/data
-/videos
-/plots
-/notebooks
-/_research
+/data/exp_pro/*
+/data/exp_raw/*
+/data/sims/*
+/slurmscripts/*
+/videos/*
+/plots/*
+/notebooks/*
+/_research/*
+
+# Do not ignore a special file name
+!.placeholder
 
 ################################################################################
 #                                    Julia                                     #
