@@ -874,7 +874,7 @@ simdifffigure_diffomega = with_theme(theme_latexfonts()) do
     for i ∈ 1:4 
         hlines!(
             haxs[i], 0; 
-            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth =1,
+            color=RGBAf(0, 0, 0, 0.12), linestyle=( :dot, :dense ), linewidth=1,
         )
     end
 
@@ -1720,10 +1720,15 @@ safesave(plotsdir("hospitalprevalenceplots.pdf"), hospitalprevalenceplots)
 println("ψ, $(quantile(dataoutputs100["df"].ψ, [ 0.05, 0.5, 0.95 ]))")
 println("θ, $(quantile(dataoutputs100["df"].θ, [ 0.05, 0.5, 0.95 ]))")
 
-@model function miniregression(xs, ys)
-    α1 ~ Normal(0, 0.05)
-    α2 ~ Normal(0, 0.05)
-    σ2 ~ Exponential(1)
+@model function miniregression(
+    xs, ys;
+    alpha1prior=Normal(0, 0.05),
+    alpha2prior=Normal(0, 0.05),
+    simasquareprior=Exponential(1),    
+)
+    α1 ~ alpha1prior
+    α2 ~ alpha2prior
+    σ2 ~ simasquareprior
 
     for (i, x) ∈ enumerate(xs)
         ys[i] ~ Normal(α1 + α2 * x, σ2)
@@ -1961,3 +1966,120 @@ end
 
 safesave(plotsdir("multiplehospitalfig.pdf"), multiplehospitalfig)
 
+
+##
+
+## Cases plot 
+
+casesplot = let 
+    peakcasesinnext100days = [
+        (
+            _cases100 = [ 
+                sum(@view dataoutputs100["modelledoutput"]["staff"][t:t+99, k]) 
+                for t ∈ 469:732 
+            ];
+            collect(469:732)[findmax(_cases100)[2]]
+        )
+        for k ∈ 1:23
+    ]
+
+    ys = let 
+        m = miniregression(
+            dataoutputs100["observationssincejuly"], 
+            peakcasesinnext100days;
+            alpha1prior=Normal(650, 100),
+            alpha2prior=Normal(0, 100),
+            simasquareprior=Exponential(50),   
+        )
+        
+        chain = sample(m, NUTS(), MCMCThreads(), 10_000, 4)
+        df = DataFrame(chain)
+        ys = [ df.α1[i] + df.α2[i] * x for x ∈ fitxs, i ∈ 1:40_000 ]
+        ys_l = [ quantile(ys[t, :], 0.05) for t ∈ axes(ys, 1) ]
+        ys_m = [ quantile(ys[t, :], 0.5) for t ∈ axes(ys, 1) ]
+        ys_u = [ quantile(ys[t, :], 0.95) for t ∈ axes(ys, 1) ]
+
+        @ntuple ys_l ys_m ys_u
+    end
+
+    fig = with_theme(theme_latexfonts()) do 
+        fig = Figure(; size=( 550, 350 ))
+        ga = GridLayout(fig[1, 1])
+        gb = GridLayout(fig[1, 2])
+
+        let 
+            ax = Axis(
+                ga[1, 1];
+                xticks=( 
+                    [ 104, 288, 469, 653, 834 ], 
+                    [ "July 2020", "Jan. 2021", "July 2021", "Jan. 2022", "July 2022" ] 
+                ), 
+                xticklabelrotation=-π/4,
+            )
+            for k ∈ 1:23
+                lines!(
+                    ax, 469:832, dataoutputs100["modelledoutput"]["staff"][469:832, k]; 
+                    color=dataoutputs100["observationssincejuly"][k],
+                    colorrange=extrema(dataoutputs100["observationssincejuly"]),
+                    linewidth=1, 
+                )
+            end
+            formataxis!(ax; hidespines=( :r, :t), trimspines=true)  
+        end
+
+        let 
+            
+            ax = Axis(
+                gb[1, 1];
+                yticks=( 
+                    [ 592, 653, 722 ], 
+                    [ "Nov. 2020", "Jan. 2021", "March 2021" ] 
+                ), 
+            )
+            scatter!(
+                ax, dataoutputs100["observationssincejuly"], peakcasesinnext100days; 
+                color=:black, markersize=3,
+            )
+            lines!(ax, fitxs, ys.ys_m; color=( COLOURVECTOR[1], 0.5 ), linewidth=1,)
+            band!(ax, fitxs, ys.ys_l, ys.ys_u; color=( COLOURVECTOR[1], 0.25 ),)   
+            formataxis!(ax; hidespines=( :r, :t), setpoint=( 1, 722 ), trimspines=true)  
+        end
+
+        Label(
+            ga[1, 0], "Incidence"; 
+            fontsize=11.84, rotation=π/2, tellheight=false
+        )
+        cb = Colorbar(ga[1, 2]; limits=extrema(dataoutputs100["observationssincejuly"]))
+        formataxis!(cb)
+        Label(
+            ga[1, 3], "Absences per healthcare worker"; 
+            fontsize=11.84, rotation=-π/2, tellheight=false
+        )
+        Label(
+            ga[2, 1], "Date"; 
+            fontsize=11.84, tellwidth=false
+        )
+        for c ∈ 1:3 colgap!(ga, c, 5) end
+        
+        Label(
+            gb[1, 0], "Start of peak infection period"; 
+            fontsize=11.84, rotation=π/2, tellheight=false
+        )
+
+        Label(
+            gb[2, 1], "Absences per healthcare worker"; 
+            fontsize=11.84, tellwidth=false
+        )
+        colgap!(gb, 1, 5)
+
+        for gl ∈ [ ga, gb ] rowgap!(gl, 1, 5) end
+
+        colsize!(fig.layout, 2, Auto(0.92))
+        labelplots!([ "A", "B" ], [ ga, gb ]; rows=1,)
+
+        fig
+    end
+    fig
+end
+
+safesave(plotsdir("casesplot.svg"), casesplot)

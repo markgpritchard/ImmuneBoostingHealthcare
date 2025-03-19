@@ -95,14 +95,15 @@
 		w1/"waning (1)" [noninfectious] ->
 		w2/"waning (2)" [noninfectious] -> 
 		susceptible [noninfectious] ->
-		infectious [noninfectious, xshift=-32mm, yshift=16mm] ->
+		infected [noninfectious, xshift=-32mm, yshift=16mm] ->
 		immune [noninfectious, xshift=-32mm, yshift=80mm] 
 		;
 	};
 	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] (w1) -- (immune); 
 	\draw [->,rounded corners,shorten >= 1pt] (immune) -- ($ (w1.north) + (0mm,10mm) $) -- (w1); 
 	\draw [->,rounded corners,shorten >= 1pt,dashed,red!50!black!50,] (w2) -- (immune);
-	\draw [->,thick,black] ($ (infectious.south) + (-20mm,-10mm) $) to [edge label=Immunity,color=black,] ($ (immune.north) + (-20mm,10mm) $);
+	\draw [->,rounded corners,shorten >= 1pt,dashed,green!50!black!50,] (susceptible.north west) -- (immune);
+	\draw [->,thick,black] ($ (infected.south) + (-20mm,-10mm) $) to [edge label=Immunity,color=black,] ($ (immune.north) + (-20mm,10mm) $);
 \end{tikzpicture}
 
 	
